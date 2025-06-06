@@ -3,153 +3,151 @@ const loom = @import("loom");
 
 const ui = loom.ui;
 
-pub fn main() !void {
-    const TestComponent = struct {
-        const Self = @This();
+const TestComponent = struct {
+    const Self = @This();
 
-        speed: usize = 430,
-        transform: ?*loom.Transform = null,
-        animator: ?*loom.Animator = null,
+    speed: usize = 430,
+    transform: ?*loom.Transform = null,
+    animator: ?*loom.Animator = null,
 
-        borderless: bool = false,
+    borderless: bool = false,
 
-        pub fn Awake(entity: *loom.Entity) !void {
-            std.log.debug("{s} Awake", .{entity.id});
+    pub fn Awake(entity: *loom.Entity) !void {
+        std.log.debug("{s} Awake", .{entity.id});
 
-            const max: comptime_int = 14;
+        const max: comptime_int = 14;
 
-            inline for (0..max) |row| {
-                inline for (0..max) |col| {
-                    const x: comptime_float = (@as(f32, @floatFromInt(col)) - @divFloor(max, 2)) * 256;
-                    const y: comptime_float = (@as(f32, @floatFromInt(row)) - @divFloor(max, 2)) * 256;
+        inline for (0..max) |row| {
+            inline for (0..max) |col| {
+                const x: comptime_float = (@as(f32, @floatFromInt(col)) - @divFloor(max, 2)) * 256;
+                const y: comptime_float = (@as(f32, @floatFromInt(row)) - @divFloor(max, 2)) * 256;
 
-                    const instance = try NewBox(.init(x, y)).makeInstance(loom.allocators.generic());
-                    try loom.summon(&.{instance});
-                }
+                const instance = try NewBox(.init(x, y)).makeInstance(loom.allocators.generic());
+                try loom.summon(&.{instance});
             }
         }
+    }
 
-        pub fn Start(self: *Self, entity: *loom.Entity) !void {
-            self.transform = try entity.pullComponent(loom.Transform);
+    pub fn Start(self: *Self, entity: *loom.Entity) !void {
+        self.transform = try entity.pullComponent(loom.Transform);
 
-            if (entity.getComponent(loom.Animator)) |animator| {
-                self.animator = animator;
-            }
-
-            std.log.debug("{s} Start", .{entity.id});
+        if (entity.getComponent(loom.Animator)) |animator| {
+            self.animator = animator;
         }
 
-        pub fn Update(self: *Self) !void {
-            const transform: *loom.Transform = try loom.ensureComponent(self.transform);
-            const animator = self.animator orelse return error.MissingTransform;
-            var move_vector = loom.vec2();
+        std.log.debug("{s} Start", .{entity.id});
+    }
 
-            if (loom.input.getKeyDown(.f))
-                try animator.play("walk-left");
+    pub fn Update(self: *Self) !void {
+        const transform: *loom.Transform = try loom.ensureComponent(self.transform);
+        const animator = self.animator orelse return error.MissingTransform;
+        var move_vector = loom.vec2();
 
-            if (loom.input.getKey(.w)) {
-                move_vector.y -= 1;
-            }
-            if (loom.input.getKey(.s)) {
-                move_vector.y += 1;
-            }
-            if (loom.input.getKey(.a)) {
-                move_vector.x -= 1;
-            }
-            if (loom.input.getKey(.d)) {
-                move_vector.x += 1;
-            }
+        if (loom.input.getKeyDown(.f))
+            try animator.play("walk-left");
 
+        if (loom.input.getKey(.w)) {
+            move_vector.y -= 1;
+        }
+        if (loom.input.getKey(.s)) {
+            move_vector.y += 1;
+        }
+        if (loom.input.getKey(.a)) {
+            move_vector.x -= 1;
+        }
+        if (loom.input.getKey(.d)) {
+            move_vector.x += 1;
+        }
+
+        if (loom.input.getKeyDown(.k)) {
+            try loom.eventloop.setActive("other");
+        }
+
+        if (loom.input.getKeyDown(.e)) {
+            try animator.play("test");
+        }
+
+        if (loom.input.getKey(.left_alt)) {
+            if (loom.input.getKeyDown(.h)) {
+                loom.window.borderless.toggle();
+            }
+            if (loom.input.getKeyDown(.j)) {
+                loom.window.fullscreen.toggle();
+            }
             if (loom.input.getKeyDown(.k)) {
-                try loom.eventloop.setActive("other");
+                loom.window.resizing.toggle();
             }
+        }
 
-            if (loom.input.getKeyDown(.e)) {
-                try animator.play("test");
-            }
+        transform.position = transform.position.add(
+            loom.vec2ToVec3(
+                move_vector
+                    .normalize()
+                    .multiply(loom.Vec2(loom.time.deltaTime(), loom.time.deltaTime()))
+                    .multiply(loom.Vec2(self.speed, self.speed)),
+            ),
+        );
 
-            if (loom.input.getKey(.left_alt)) {
-                if (loom.input.getKeyDown(.h)) {
-                    loom.window.borderless.toggle();
-                }
-                if (loom.input.getKeyDown(.j)) {
-                    loom.window.fullscreen.toggle();
-                }
-                if (loom.input.getKeyDown(.k)) {
-                    loom.window.resizing.toggle();
-                }
-            }
+        ui.new(.{
+            .id = .ID("test"),
 
-            transform.position = transform.position.add(
-                loom.vec2ToVec3(
-                    move_vector
-                        .normalize()
-                        .multiply(loom.Vec2(loom.time.deltaTime(), loom.time.deltaTime()))
-                        .multiply(loom.Vec2(self.speed, self.speed)),
-                ),
-            );
-
+            .layout = .{
+                .sizing = .{
+                    .w = .fixed(300),
+                    .h = .percent(100),
+                },
+                .padding = .all(10),
+                .child_gap = 10,
+                .direction = .top_to_bottom,
+            },
+            .background_color = ui.hex(0xFFFFFFFF),
+        })({
             ui.new(.{
                 .id = .ID("test"),
-
                 .layout = .{
                     .sizing = .{
-                        .w = .fixed(300),
-                        .h = .percent(100),
+                        .w = .grow,
+                        .h = .fixed(300),
                     },
-                    .padding = .all(10),
-                    .child_gap = 10,
-                    .direction = .top_to_bottom,
                 },
-                .background_color = ui.hex(0xFFFFFFFF),
+                .background_color = loom.ui.rgb(20, 120, 220),
+                .image = try ui.image("loom_logo_large.png", .init(320, 240)),
+            })({});
+            ui.new(.{
+                .id = .ID("test"),
+                .layout = .{
+                    .sizing = .{
+                        .w = .grow,
+                        .h = .fixed(100),
+                    },
+                },
             })({
-                ui.new(.{
-                    .id = .ID("test"),
-                    .layout = .{
-                        .sizing = .{
-                            .w = .grow,
-                            .h = .fixed(300),
-                        },
-                    },
-                    .background_color = loom.ui.rgb(20, 120, 220),
-                    .image = try ui.image("img3.png", .init(320, 240)),
-                })({});
-                ui.new(.{
-                    .id = .ID("test"),
-                    .layout = .{
-                        .sizing = .{
-                            .w = .grow,
-                            .h = .fixed(100),
-                        },
-                    },
-                })({
-                    ui.text("Clay - UI Library", .{
-                        .font_size = 12,
-                        .letter_spacing = 1,
-                        .color = .{ 0, 0, 0, 255 },
-                        .font_id = loom.ui.fontID("press_play.ttf"),
-                    });
+                ui.text("Clay - UI Library", .{
+                    .font_size = 12,
+                    .letter_spacing = 1,
+                    .color = .{ 0, 0, 0, 255 },
+                    .font_id = loom.ui.fontID("press_play.ttf"),
                 });
             });
-        }
+        });
+    }
 
-        pub fn End(entity: *loom.Entity) !void {
-            std.log.debug("{s} End", .{entity.id});
-            loom.eventloop.active_scene.?.removeEntityById("Box");
-        }
-    };
+    pub fn End(entity: *loom.Entity) !void {
+        std.log.debug("{s} End", .{entity.id});
+        loom.eventloop.active_scene.?.removeEntityById("Box");
+    }
+};
 
+pub fn main() !void {
     const player_new = loom.Prefab.new("Player", .{
         TestComponent{},
         loom.Renderer{
-            .img_path = "logo_large.png",
+            .img_path = "loom_logo_large.png",
         },
-        loom.Transform{
-            .position = loom.Vec3(0, 0, 0),
-        },
+        loom.Transform{ .position = loom.Vec3(0, 0, 0), .scale = .init(43 * 4, 64) },
         loom.RectangleCollider{
             .type = .dynamic,
-            .collider_transform = .{},
+            .collider_transform = .{ .scale = .init(43 * 4, 64) },
             .weight = 1,
         },
 
@@ -157,15 +155,15 @@ pub fn main() !void {
             .init("walk-left", 30, loom.interpolation.lerp, &.{
                 loom.Keyframe{
                     .rotation = 0,
-                    .sprite = "img2.png",
+                    .sprite = "ashmium.png",
                 },
                 loom.Keyframe{
                     .rotation = 180,
-                    .sprite = "img3.png",
+                    .sprite = "loom_logo_large.png",
                 },
                 loom.Keyframe{
                     .rotation = 0,
-                    .sprite = "img2.png",
+                    .sprite = "ashmium.png",
                 },
             }),
         }),
@@ -191,7 +189,7 @@ pub fn main() !void {
 
 pub fn NewBox(comptime position: loom.Vector2) loom.Prefab {
     return loom.Prefab.new("Box", .{
-        loom.Renderer.tile("img3.png", .init(88, 32)),
+        loom.Renderer.init("ashmium.png"),
         loom.Transform{
             .position = comptime loom.vec2ToVec3(position),
         },

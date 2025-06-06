@@ -1,5 +1,5 @@
 <div align="center" alt="loom">
-    <img src="./src/demo/assets/loom_logo_large.png" width="600">
+    <img src="./resources/loom_logo_1376x512.png" width="600">
     <p>The declarative, ECS-based game engine, written in zig.</p>
 </div>
 

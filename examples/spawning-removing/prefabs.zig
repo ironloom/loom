@@ -23,7 +23,9 @@ pub fn SpawnTarget(position: loom.Vector2) !*loom.Entity {
             .position = loom.vec2ToVec3(position),
         },
         loom.Renderer.sprite("./resources/loom_logo_43x16.png"),
-        loom.RectangleCollider.init(.{}),
+        loom.RectangleCollider.initConfig(.{
+            .type = .dynamic,
+        }),
         Spawned{},
     });
 }

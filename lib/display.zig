@@ -78,6 +78,9 @@ pub fn render() void {
                 rl.drawCircle(loom.toi32(points.D.x), loom.toi32(points.D.y), 5, color);
                 rl.drawLineEx(points.D, points.A, 2, color);
 
+                rl.drawLineEx(loom.vec3ToVec2(item.transform.position), loom.vec3ToVec2(item.transform.position).add(.init(collider.R(), 0)), 2, .orange);
+                rl.drawCircleLinesV(loom.vec3ToVec2(item.transform.position), collider.R(), .maroon);
+
                 break :Debug;
             }
 

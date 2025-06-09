@@ -43,12 +43,7 @@ pub fn setActive(id: []const u8) !void {
     for (scenes_ptr.items) |scene| {
         if (!std.mem.eql(u8, scene.id, id)) continue;
 
-        // if (active_scene) |ascene| {
-        //     ascene.unload();
-        // }
-
         next_scene = scene;
-        // try scene.load();
         return;
     }
     return Error.SceneNotFound;
@@ -56,6 +51,13 @@ pub fn setActive(id: []const u8) !void {
 
 pub fn execute() void {
     const ascene = active_scene orelse return;
+
+    if (!ascene.is_active) {
+        ascene.load() catch |err| {
+            std.log.err("couldn't load \"{s}\" scene: {any}", .{ ascene.id, err });
+            return;
+        };
+    }
 
     ascene.execute();
 }
@@ -67,8 +69,6 @@ pub fn loadNext() !void {
     active_scene = nscene;
 
     _ = if (loom.allocators.AI_scene.interface) |*int| int.reset(.free_all);
-
-    try nscene.load();
 
     next_scene = null;
 }

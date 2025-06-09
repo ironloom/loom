@@ -81,16 +81,18 @@ pub const RectangleCollider = struct {
         }
     };
 
-    const Self = @This();
-    var collidables: ?std.ArrayList(*Self) = null;
-
-    collider_transform: Transform,
-    type: enum {
+    const ColliderType = enum {
         static,
         dynamic,
         trigger,
         passtrough,
-    } = .static,
+    };
+
+    const Self = @This();
+    var collidables: ?std.ArrayList(*Self) = null;
+
+    collider_transform: Transform,
+    type: ColliderType = .static,
     weight: f32 = 1,
     onCollision: ?*const fn (self: *loom.Entity, other: *loom.Entity) anyerror!void = null,
 
@@ -121,6 +123,21 @@ pub const RectangleCollider = struct {
         return Self{
             .collider_transform = collider_transform,
             .last_collider_transform = collider_transform,
+        };
+    }
+
+    pub fn initConfig(config: struct {
+        transform: Transform = .{},
+        type: ColliderType = .static,
+        weight: f32 = 1,
+        onCollidion: ?*const fn (self: *loom.Entity, other: *loom.Entity) anyerror!void = null,
+    }) Self {
+        return Self{
+            .collider_transform = config.transform,
+            .last_collider_transform = config.transform,
+            .type = config.type,
+            .weight = config.weight,
+            .onCollision = config.onCollidion,
         };
     }
 

@@ -99,32 +99,32 @@ pub fn unload(self: *Self) void {
 pub fn execute(self: *Self) void {
     const is_tick = self.last_tick_at + 1.0 / loom.tof64(self.ticks_per_second) <= loom.time.appTime();
 
-    var new_entities_clone = loom.Array(*Entity).fromArrayList(self.new_entities) catch loom.Array(*Entity){ .items = &.{} };
-    defer new_entities_clone.deinit();
+    for (self.new_entities.items) |entity| {
+        if (entity.remove_next_frame) continue;
+        self.entities.append(entity) catch |err| {
+            std.log.err("failed to add entity, error: {any}", .{err});
+            continue;
+        };
+
+        entity.addPreparedComponents(true) catch |err| {
+            std.log.err("failed to add components to entity, error: {any}", .{err});
+            continue;
+        };
+    }
 
     self.new_entities.clearAndFree();
 
-    for (new_entities_clone.items) |entity| {
-        if (entity.remove_next_frame) continue;
-        self.entities.append(entity) catch continue;
+    const len = self.entities.items.len;
+    for (1..len + 1) |b| {
+        const index = len - b;
+        const entity: *Entity = self.entities.items[index];
 
-        entity.addPreparedComponents(true) catch continue;
-    }
-
-    const clone = loom.cloneToOwnedSlice(*loom.Entity, self.entities) catch return;
-    defer loom.allocators.generic().free(clone);
-
-    for (clone) |entity| {
         if (!entity.remove_next_frame) continue;
+
         entity.dispatchEvent(.end);
 
-        for (self.entities.items, 0..) |original, index| {
-            if (original.uuid != entity.uuid) continue;
-
-            original.destroy();
-            _ = self.entities.swapRemove(index);
-            break;
-        }
+        entity.destroy();
+        _ = self.entities.swapRemove(index);
     }
 
     for (self.entities.items) |entity| {
@@ -177,6 +177,7 @@ pub fn removeEntity(self: *Self, value: anytype, eqls: *const fn (@TypeOf(value)
         if (!eqls(value, entity)) continue;
 
         entity.remove_next_frame = true;
+        break;
     }
 }
 

@@ -4,22 +4,18 @@ const loom = @import("loom");
 const Self = @This();
 
 entity: *const fn (position: loom.Vector2) anyerror!*loom.Entity,
-amount: usize = 10,
+amount: usize = 100,
 
-pub fn Start(self: *Self) !void {
-    for (0..self.amount) |_| {
-        try loom.summon(&.{.{
-            .entity = try self.entity(loom.Vec2(
-                loom.random.intRangeAtMost(isize, -640, 640),
-                loom.random.intRangeAtMost(isize, -320, 320),
-            )),
-        }});
-    }
-}
-
-pub fn Update() !void {
+pub fn Update(self: *Self) !void {
     if (loom.input.getKeyDown(.f)) {
-        try loom.loadScene("default");
+        for (0..self.amount) |_| {
+            try loom.summon(&.{.{
+                .entity = try self.entity(loom.Vec2(
+                    loom.random.intRangeAtMost(isize, -640, 640),
+                    loom.random.intRangeAtMost(isize, -320, 320),
+                )),
+            }});
+        }
     }
 
     loom.ui.new(.{

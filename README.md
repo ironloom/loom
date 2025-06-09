@@ -14,6 +14,31 @@ The engine aims to provide a declarative interface for game development. We try 
 
 ## Install loom
 
-```sh
-zig fetch --save git+https://github.com/zewenn/loom
-```
+Adding loom is easy, just follow these steps:
+
+1. Fetch the package.
+
+   ```sh
+   zig fetch --save git+https://github.com/zewenn/loom
+   ```
+
+2. Get the module.
+
+   ```zig
+   const loom_dep = b.dependency("loom", .{
+       .target = target,
+       .optimize = optimize,
+   });
+   const loom_mod = loom_dep.module("loom");
+   ```
+
+3. Add the import
+
+   ```zig
+   target_module.addImport("loom", loom_mod);
+   ```
+
+4. You are ready to go, import loom into you project:
+   ```zig
+   const loom = @import("loom");
+   ```

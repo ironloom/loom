@@ -34,7 +34,7 @@ display_cache: ?*DisplayCache = null,
 is_child: bool = false,
 parent: ?*Transform = null,
 
-pub fn init(path: []const u8) Self {
+pub fn sprite(path: []const u8) Self {
     return Self{
         .img_path = path,
     };
@@ -47,8 +47,21 @@ pub fn tile(path: []const u8, tile_size: loom.Vector2) Self {
     };
 }
 
+pub fn init(config: struct {
+    img_path: []const u8,
+    tint: rl.Color,
+
+    tile_size: ?loom.Vector2 = null,
+}) Self {
+    return Self{
+        .img_path = config.img_path,
+        .tint = config.tint,
+        .tile_size = config.tile_size,
+    };
+}
+
 pub fn Awake(self: *Self, entity: *loom.Entity) !void {
-    const display_cache = DisplayCache{
+    try entity.addComponent(DisplayCache{
         .img_path = self.img_path,
         .transform = Transform{
             .scale = .init(-1, -1),
@@ -57,9 +70,7 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
             self.img_path,
             .{ 0, 0 },
         ),
-    };
-
-    try entity.addComponent(display_cache);
+    });
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
 }
 

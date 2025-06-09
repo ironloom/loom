@@ -16,8 +16,8 @@ pub fn main() !void {
         loom.scene("default")({
             loom.prefabs(.{
                 try prefabs.Spawner(.init(
-                    loom.tof32(loom.random.intRangeAtMost(i32, -600, 600)),
-                    loom.tof32(loom.random.intRangeAtMost(i32, -300, 300)),
+                    0,
+                    0,
                     0,
                 )),
             });

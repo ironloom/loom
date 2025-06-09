@@ -192,13 +192,11 @@ pub fn prefabs(prefab_tuple: anytype) void {
 const SummonTag = enum {
     entity,
     prefab,
-    prefab_auto_deinit,
 };
 
 const SummonUnion = union(SummonTag) {
     entity: *Entity,
     prefab: Prefab,
-    prefab_auto_deinit: Prefab,
 };
 
 pub fn summon(entities_prefabs: []const SummonUnion) !void {
@@ -208,15 +206,27 @@ pub fn summon(entities_prefabs: []const SummonUnion) !void {
         switch (value) {
             .entity => |entity| try ascene.addEntity(entity),
             .prefab => |pfab| try ascene.addEntity(try pfab.makeInstance()),
-            .prefab_auto_deinit => |pfab| {
-                try ascene.addEntity(try pfab.makeInstance());
-                pfab.deinit();
-            },
         }
     }
 }
 
 pub const prefab = Prefab.init;
+pub fn makeEntity(id: []const u8, components: anytype) !*Entity {
+    const ptr = try Entity.create(allocators.generic(), id);
+    try ptr.addComponents(components);
+
+    return ptr;
+}
+
+pub fn makeEntityI(id: []const u8, index: u32, components: anytype) !*Entity {
+    const alloc_id = try std.fmt.allocPrint(allocators.generic(), "{s}-{d}", .{ id, index });
+    defer allocators.generic().free(alloc_id);
+
+    const ptr = try Entity.createAllocId(allocators.generic(), alloc_id);
+    try ptr.addComponents(components);
+
+    return ptr;
+}
 
 /// The scene will be loaded after the currect eventloop cycle is executed.
 pub const loadScene = eventloop.setActive;

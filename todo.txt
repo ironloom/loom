@@ -6,14 +6,22 @@ x 2025-06-06 rewrite collision system
 +v0.1.1
 x 2025-06-09 fix summoning mess
 
++v0.1.2
+x 2025-06-09 change Prefabs to be comptime again
+    NOTE:   Prefabs are always comptime known. They are the schematics for the
+            building of an entity. If you need to do runtime spawning use 
+            loom.makeEntity() or loom.makeEntityI(). This way you can instantly
+            get an Entity.
+x 2025-06-09 update readme.md with install instructions
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
-update readme.md with install instructions
-
+add display sorting based on y-index
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
 fix removeComponent
-change prefabs from comptime to runtime
 add auto tiling system
 change project(void)(void) to project(configStruct)(void)
+
+clean up root.zig

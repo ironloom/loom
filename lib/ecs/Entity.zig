@@ -9,6 +9,8 @@ const Self = @This();
 id: []const u8,
 uuid: u128,
 
+allocated_id: bool = false,
+
 prepared_components: std.ArrayList(*Behaviour),
 components: std.ArrayList(*Behaviour),
 alloc: Allocator,
@@ -32,6 +34,17 @@ pub fn create(allocator: Allocator, id: []const u8) !*Self {
     return ptr;
 }
 
+pub fn createAllocId(allocator: Allocator, id: []const u8) !*Self {
+    const id_ptr = try allocator.alloc(u8, id.len);
+    std.mem.copyForwards(u8, id_ptr, id);
+
+    const ptr = try allocator.create(Self);
+    ptr.* = Self.init(allocator, id_ptr);
+    ptr.allocated_id = true;
+
+    return ptr;
+}
+
 pub fn deinit(self: *Self) void {
     for (self.components.items) |item| {
         if (!self.end_dispatched)
@@ -46,6 +59,11 @@ pub fn deinit(self: *Self) void {
         self.alloc.destroy(item);
     }
     self.prepared_components.deinit();
+
+    if (self.allocated_id) {
+        self.alloc.free(self.id);
+        self.id = "[INVALID - FREED]";
+    }
 }
 
 pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {

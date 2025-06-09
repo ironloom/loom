@@ -18,7 +18,11 @@ const BufferType = std.ArrayList(Renderer);
 var buffer: ?BufferType = null;
 
 fn sort(_: void, lsh: Renderer, rsh: Renderer) bool {
-    if (lsh.transform.position.z < rsh.transform.position.z) return true;
+    if (lsh.transform.position.z < rsh.transform.position.z)
+        return true
+    else if (lsh.transform.position.z == rsh.transform.position.z)
+        if (lsh.transform.position.y < rsh.transform.position.y) return true;
+        
     return false;
 }
 

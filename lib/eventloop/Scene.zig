@@ -43,10 +43,6 @@ pub fn create(allocator: Allocator, id: []const u8) !*Self {
 pub fn deinit(self: *Self) void {
     self.unload();
 
-    for (self.prefabs.items) |*prefab| {
-        prefab.deinit();
-    }
-
     self.prefabs.deinit();
 }
 

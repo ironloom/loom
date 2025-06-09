@@ -158,19 +158,19 @@ pub fn getComponents(self: *Self, comptime T: type) ![]*T {
 }
 
 pub fn removeComponent(self: *Self, comptime T: type) void {
-    for (self.components.items, 0..) |component, index| {
-        if (!component.isType(T)) continue;
+    for (self.components.items) |component| {
+        if (!component.isType(T) and !component.marked_for_removal) continue;
 
-        _ = self.components.swapRemove(index);
+        component.marked_for_removal = true;
         return;
     }
 }
 
 pub fn removeComponents(self: *Self, comptime T: type) void {
-    for (self.components.items, 0..) |component, index| {
+    for (self.components.items) |component| {
         if (!component.isType(T)) continue;
 
-        _ = self.components.swapRemove(index);
+        component.marked_for_removal = true;
     }
 }
 
@@ -179,5 +179,15 @@ pub fn dispatchEvent(self: *Self, event: Behaviour.Events) void {
 
     for (self.components.items) |item| {
         item.callSafe(event, self);
+    }
+
+    const len = self.components.items.len;
+    for (1..len + 1) |j| {
+        const index = len - j;
+        const item = self.components.items[index];
+
+        if (item.marked_for_removal) {
+            _ = self.components.swapRemove(index);
+        }
     }
 }

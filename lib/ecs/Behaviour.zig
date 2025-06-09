@@ -21,6 +21,7 @@ name: []const u8 = "[UNNAMED]",
 hash: u64,
 is_alive: bool = false,
 initalised: bool = false,
+marked_for_removal: bool = false,
 
 awake: FnType = null,
 start: FnType = null,

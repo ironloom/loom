@@ -52,6 +52,7 @@ pub fn build(b: *std.Build) !void {
     const examples: []const []const u8 = &.{
         "spawning-removing",
         "display-sorting",
+        "components",
     };
 
     inline for (examples) |example| {

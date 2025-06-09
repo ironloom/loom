@@ -11,3 +11,9 @@
 > This project uses zig version `0.14.0` and the latest version of the bindings.
 
 The engine aims to provide a declarative interface for game development. We try to provide a _"code only Unity"_, where you only have to configure scenes and entities with only a few lines of code.
+
+## Install loom
+
+```sh
+zig fetch --save git+https://github.com/zewenn/loom
+```

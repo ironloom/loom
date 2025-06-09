@@ -1,6 +1,17 @@
-
++v0.1.0
 x 2025-06-06 rewrite collision system
 
++v0.1.1
+x 2025-06-09 fix summoning mess
+
++--------------------------------[IN_PROGRESS]--------------------------------
+
+
+
+
++-----------------------------------[TO_DO]-----------------------------------
+
 fix removeComponent
-fix summoning mess
 change prefabs from comptime to runtime
+add auto tiling system
+change project(void)(void) to project(configStruct)(void)

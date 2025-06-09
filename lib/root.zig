@@ -31,7 +31,6 @@ pub const Dimensions = clay.Dimensions;
 
 pub const Transform = @import("builtin-components/Transform.zig");
 pub const Renderer = @import("builtin-components/Renderer.zig");
-pub const RectCollider = @import("builtin-components/collision.zig").RectCollider;
 pub const RectangleCollider = @import("builtin-components/collision.zig").RectangleCollider;
 pub const CameraTarget = @import("builtin-components/camera.zig").CameraTarget;
 pub const Animator = @import("builtin-components/animator/Animator.zig");
@@ -85,8 +84,8 @@ pub fn project(_: void) *const fn (void) void {
     };
 
     // Switcheroo to make sure vsync actually gets set :D
-    window.vsync.set(!window.vsync.get());
-    window.vsync.set(!window.vsync.get());
+    window.vsync.toggle();
+    window.vsync.toggle();
 
     display.init();
     ui.init() catch @panic("UI INIT FAILED");
@@ -162,6 +161,10 @@ pub fn project(_: void) *const fn (void) void {
             assets.deinit();
 
             window.deinit();
+
+            if (allocators.AI_arena.interface) |arena| {
+                arena.deinit();
+            }
         }
     }.callback;
 }
@@ -177,22 +180,80 @@ pub fn scene(id: []const u8) *const fn (void) void {
 }
 
 pub fn prefabs(prefab_tuple: anytype) void {
-    comptime {
-        for (prefab_tuple) |entity| {
-            std.debug.assert(@TypeOf(entity) == Prefab);
-        }
-    }
+    var arr = Array(Prefab).init(prefab_tuple, .{ .on_type_change_fail = .ignore }) catch return;
+    defer arr.deinit();
 
     const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
-    selected_scene.addPrefabs(prefab_tuple) catch {
+    selected_scene.addPrefabs(arr) catch {
         std.log.err("couldn't add prefabs", .{});
     };
 }
 
-pub fn summon(entities: []const *Entity) !void {
+const SummonTag = enum {
+    entity,
+    prefab,
+    prefab_auto_deinit,
+};
+
+const SummonUnion = union(SummonTag) {
+    entity: *Entity,
+    prefab: Prefab,
+    prefab_auto_deinit: Prefab,
+};
+
+pub fn summon(entities_prefabs: []const SummonUnion) !void {
     const ascene = eventloop.active_scene orelse return;
 
-    for (entities) |entity| try ascene.addEntity(entity);
+    for (entities_prefabs) |value| {
+        switch (value) {
+            .entity => |entity| try ascene.addEntity(entity),
+            .prefab => |pfab| try ascene.addEntity(try pfab.makeInstance()),
+            .prefab_auto_deinit => |pfab| {
+                try ascene.addEntity(try pfab.makeInstance());
+                pfab.deinit();
+            },
+        }
+    }
+}
+
+pub const prefab = Prefab.init;
+
+/// The scene will be loaded after the currect eventloop cycle is executed.
+pub const loadScene = eventloop.setActive;
+
+const RemoveEntityTag = enum {
+    id,
+    uuid,
+    ptr,
+};
+
+const RemoveEntityTargetType = union(RemoveEntityTag) {
+    const Self = @This();
+
+    id: []const u8,
+    uuid: u128,
+    ptr: *Entity,
+
+    pub fn byID(str: []const u8) Self {
+        return .{ .id = str };
+    }
+
+    pub fn byUUID(target_uuid: u128) Self {
+        return .{ .uuid = target_uuid };
+    }
+
+    pub fn byPtr(pointer: *Entity) Self {
+        return .{ .ptr = pointer };
+    }
+};
+
+pub fn removeEntity(target: RemoveEntityTargetType) void {
+    const ascene = eventloop.active_scene orelse return;
+    switch (target) {
+        .id => |id| ascene.removeEntityById(id),
+        .uuid => |target_uuid| ascene.removeEntityByUuid(target_uuid),
+        .ptr => |ptr| ascene.removeEntityByPtr(ptr),
+    }
 }
 
 pub const allocators = struct {
@@ -214,7 +275,7 @@ pub const allocators = struct {
         return AI_generic.allocator orelse Blk: {
             switch (builtin.mode) {
                 .Debug, .ReleaseFast => {
-                    AI_generic.interface = std.heap.DebugAllocator(.{}){};
+                    AI_generic.interface = std.heap.DebugAllocator(.{}).init;
                     AI_generic.allocator = AI_generic.interface.?.allocator();
                 },
                 else => AI_generic.allocator = std.heap.smp_allocator,
@@ -244,6 +305,23 @@ pub const allocators = struct {
             break :Blk AI_scene.allocator.?;
         };
     }
+
+    pub const c = struct {
+        const CError = error{
+            OutOfMemory,
+        };
+
+        pub fn create(comptime T: type) !*T {
+            const ptr = try malloc(@sizeOf(T));
+            return @ptrCast(@alignCast(ptr));
+        }
+
+        pub fn malloc(size: usize) !*anyopaque {
+            return std.c.malloc(size) orelse CError.OutOfMemory;
+        }
+
+        pub const free = std.c.free;
+    };
 };
 
 pub const Behaviour = ecs.Behaviour;
@@ -253,7 +331,7 @@ pub const Scene = eventloop.Scene;
 
 pub const UUIDv7 = uuid.v7.new;
 
-fn boundcheckMinMax(comptime T: type, value2: anytype) T {
+fn safeIntCast(comptime T: type, value2: anytype) T {
     if (std.math.maxInt(T) < value2) {
         return std.math.maxInt(T);
     }
@@ -265,7 +343,7 @@ fn boundcheckMinMax(comptime T: type, value2: anytype) T {
 }
 
 /// # coerceTo
-/// The quick way to change types for ints, floats, booleans, enums and pointers.
+/// The quick way to change types for ints, floats, booleans, enums, and pointers.
 /// Currently:
 /// - `int`, `comptime_int` can be cast to:
 ///     - other `int` types (e.g. `i32` -> `i64`)
@@ -292,15 +370,17 @@ fn boundcheckMinMax(comptime T: type, value2: anytype) T {
 ///     - `int`, the address will become the int's value
 ///     - other `pointer` types (e.g. `*anyopaque` -> `*i32`)
 pub inline fn coerceTo(comptime TypeTarget: type, value: anytype) ?TypeTarget {
+    if (@TypeOf(value) == TypeTarget) return value;
+
     const value_info = @typeInfo(@TypeOf(value));
 
     return switch (@typeInfo(TypeTarget)) {
         .int, .comptime_int => switch (value_info) {
             .int, .comptime_int => @intCast(
-                boundcheckMinMax(TypeTarget, value),
+                safeIntCast(TypeTarget, value),
             ),
             .float, .comptime_float => @intCast(
-                boundcheckMinMax(TypeTarget, @as(i128, @intFromFloat(@max(std.math.minInt(i128), @min(std.math.maxInt(i128), @round(value)))))),
+                safeIntCast(TypeTarget, @as(i128, @intFromFloat(@max(std.math.minInt(i128), @min(std.math.maxInt(i128), @round(value)))))),
             ),
             .bool => @as(TypeTarget, @intFromBool(value)),
             .@"enum" => @as(TypeTarget, @intFromEnum(value)),
@@ -327,7 +407,7 @@ pub inline fn coerceTo(comptime TypeTarget: type, value: anytype) ?TypeTarget {
             .int, .comptime_int => @enumFromInt(value),
             .float, .comptime_float => @enumFromInt(@as(isize, @intFromFloat(@round(value)))),
             .bool => @enumFromInt(@intFromBool(value)),
-            .@"enum" => @enumFromInt(@as(isize, @intFromEnum(value))),
+            .@"enum" => |enum_info| @enumFromInt(@as(enum_info.tag_type, @intFromEnum(value))),
             .pointer => @enumFromInt(@as(usize, @intFromPtr(value))),
             else => null,
         },
@@ -505,18 +585,6 @@ pub fn Rect(x: anytype, y: anytype, width: anytype, height: anytype) Rectangle {
         .y = tof32(y),
         .width = tof32(width),
         .height = tof32(height),
-    };
-}
-
-pub fn vec(comptime values: []const f32) switch (values.len) {
-    0, 1, 2 => Vector2,
-    3 => Vector3,
-    else => Vector4,
-} {
-    return switch (values.len) {
-        0, 1, 2 => Vec2(if (values.len >= 1) values[0] else 0, if (values.len >= 2) values[1] else 0),
-        3 => Vec3(values[0], values[1], values[2]),
-        else => Vec4(values[0], values[1], values[2], values[3]),
     };
 }
 

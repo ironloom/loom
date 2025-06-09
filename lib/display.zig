@@ -48,7 +48,34 @@ pub fn render() void {
     std.sort.insertion(Renderer, buf.items, {}, sort);
 
     for (buf.items) |item| {
-        if (builtin.mode == .Debug and loom.window.use_debug_mode) {
+        if (builtin.mode == .Debug and loom.window.use_debug_mode) Debug: {
+            if (item.entity) |entity| blk: {
+                const collider = entity.getComponent(loom.RectangleCollider) orelse break :blk;
+
+                const points = collider.points orelse break :blk;
+
+                const color: rl.Color = switch (collider.type) {
+                    .static => .lime,
+                    .dynamic => .pink,
+                    .passtrough => .sky_blue,
+                    .trigger => .orange,
+                };
+
+                rl.drawCircle(loom.toi32(points.A.x), loom.toi32(points.A.y), 5, color);
+                rl.drawLineEx(points.A, points.B, 2, color);
+
+                rl.drawCircle(loom.toi32(points.B.x), loom.toi32(points.B.y), 5, color);
+                rl.drawLineEx(points.B, points.C, 2, color);
+
+                rl.drawCircle(loom.toi32(points.C.x), loom.toi32(points.C.y), 5, color);
+                rl.drawLineEx(points.C, points.D, 2, color);
+
+                rl.drawCircle(loom.toi32(points.D.x), loom.toi32(points.D.y), 5, color);
+                rl.drawLineEx(points.D, points.A, 2, color);
+
+                break :Debug;
+            }
+
             rl.drawRectanglePro(
                 loom.Rect(
                     item.transform.position.x - 2,
@@ -71,17 +98,6 @@ pub fn render() void {
                 item.transform.rotation,
                 loom.window.clear_color,
             );
-
-            if (item.entity) |entity| blk: {
-                const collider = entity.getComponent(loom.RectangleCollider) orelse break :blk;
-
-                const points = collider.points orelse break :blk;
-
-                rl.drawCircle(loom.toi32(points.A.x), loom.toi32(points.A.y), 2, rl.Color.pink);
-                rl.drawCircle(loom.toi32(points.B.x), loom.toi32(points.B.y), 2, rl.Color.pink);
-                rl.drawCircle(loom.toi32(points.C.x), loom.toi32(points.C.y), 2, rl.Color.pink);
-                rl.drawCircle(loom.toi32(points.D.x), loom.toi32(points.D.y), 2, rl.Color.pink);
-            }
         }
 
         rl.drawTexturePro(

@@ -1,11 +1,11 @@
 .{
     .name = .loom,
-    .version = "0.1.0",
+    .version = "0.1.1",
     .fingerprint = 0xc2597137c472d6ae, // Changing this has security and trust implications.
 
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.14.1",
 
     .dependencies = .{
         .raylib_zig = .{

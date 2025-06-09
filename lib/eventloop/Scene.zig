@@ -42,6 +42,11 @@ pub fn create(allocator: Allocator, id: []const u8) !*Self {
 
 pub fn deinit(self: *Self) void {
     self.unload();
+
+    for (self.prefabs.items) |*prefab| {
+        prefab.deinit();
+    }
+
     self.prefabs.deinit();
 }
 
@@ -54,7 +59,7 @@ pub fn load(self: *Self) !void {
     if (!self.is_alive) return;
 
     for (self.prefabs.items) |prefabs| {
-        const entity = try prefabs.makeInstance(self.alloc);
+        const entity = try prefabs.makeInstance();
         try self.entities.append(entity);
 
         try entity.addPreparedComponents(false);
@@ -143,13 +148,11 @@ pub fn addPrefab(self: *Self, prefab: loom.Prefab) !void {
     try self.prefabs.append(prefab);
 }
 
-pub fn addPrefabs(self: *Self, prefab_tuple: anytype) !void {
+pub fn addPrefabs(self: *Self, prefab_tuple: loom.Array(loom.Prefab)) !void {
     if (!self.is_alive) return;
 
-    inline for (prefab_tuple) |prefab| {
-        const T = @TypeOf(prefab);
-
-        if (T == loom.Prefab) try self.addPrefab(prefab);
+    for (prefab_tuple.items) |prefab| {
+        try self.addPrefab(prefab);
     }
 }
 

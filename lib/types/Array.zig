@@ -12,8 +12,9 @@ pub const ArrayOptions = struct {
     try_type_change: bool = true,
     on_type_change_fail: enum {
         ignore,
+        err,
         panic,
-    } = .panic,
+    } = .err,
 };
 
 pub fn Array(comptime T: type) type {
@@ -44,7 +45,7 @@ pub fn Array(comptime T: type) type {
                         switch (options.try_type_change) {
                             true => coerceTo(T, item) orelse switch (options.on_type_change_fail) {
                                 .ignore => null,
-                                .panic => {
+                                .err => {
                                     std.log.err(
                                         "[Array.init] Tuple had items of incorrect type in it. (With current options this causes a panic!)\n" ++
                                             "\t\tTry setting the options.on_type_change_fail value to .ignore to avoid this error." ++
@@ -53,10 +54,11 @@ pub fn Array(comptime T: type) type {
                                     );
                                     return Error.TypeChangeFailiure;
                                 },
+                                .panic => @panic("[Array.init] type change failed and resulted in panic"),
                             },
                             false => {
                                 std.log.err(
-                                    "[Array.init] Tuple had items of incorrect type in it. (With current options this causes a panic!)\n" ++
+                                    "[Array.init] Tuple had items of incorrect type. (With current options this causes an error!)\n" ++
                                         "\t\tTry setting the options.try_type_change value to true to avoid this error.",
                                     .{},
                                 );
@@ -81,7 +83,19 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn fromArray(arr: []T, alloc: ?Allocator) !Self {
-            const allocator = alloc orelse std.heap.page_allocator;
+            const allocator = alloc orelse std.heap.smp_allocator;
+
+            const new = try allocator.alloc(T, arr.len);
+            std.mem.copyForwards(T, new, arr);
+
+            return Self{
+                .items = new,
+                .alloc = allocator,
+            };
+        }
+
+        pub fn fromConstArray(arr: []const T, alloc: ?Allocator) !Self {
+            const allocator = alloc orelse std.heap.smp_allocator;
 
             const new = try allocator.alloc(T, arr.len);
             std.mem.copyForwards(T, new, arr);
@@ -152,19 +166,10 @@ pub fn Array(comptime T: type) type {
             };
         }
 
-        pub fn reduce(self: Self, comptime R: type, reduce_fn: fn (T) anyerror!R) !?R {
-            var value: ?R = null;
+        pub fn reduce(self: Self, comptime R: type, reduce_fn: fn (accumulator: R, current: T) anyerror!R, initial_value: R) R {
+            var value: R = initial_value;
 
-            for (self.items) |item| {
-                if (value == null) {
-                    value = reduce_fn(item) catch null;
-                    continue;
-                }
-
-                const val = reduce_fn(item) catch continue;
-
-                value = value.? + val;
-            }
+            for (self.items) |item| value = reduce_fn(value, item) catch continue;
 
             return value;
         }
@@ -219,15 +224,17 @@ pub fn Array(comptime T: type) type {
         }
 
         /// Caller owns the returned memory.
-        pub fn slice(self: Self, from: usize, to: usize) !Self {
+        pub fn ownedSlice(self: Self, from: usize, to: usize) !Self {
             const start = @min(@min(from, to), self.lastIndex());
             const end = @min(@max(from, to), self.lastIndex());
 
             return try Self.fromArray(self.items[start..end], self.alloc);
         }
 
-        /// Caller owns the returned memory. Does not empty the array.
+        /// Caller owns the returned memory. Does empty the array.
         pub fn toOwnedSlice(self: Self) ![]T {
+            defer self.deinit();
+
             const new_slice = try self.alloc.alloc(T, self.len());
             std.mem.copyForwards(T, new_slice, self.items);
 

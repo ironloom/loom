@@ -1,4 +1,5 @@
 const std = @import("std");
+const loom = @import("../root.zig");
 const Allocator = @import("std").mem.Allocator;
 
 const Entity = @import("./Entity.zig");
@@ -6,21 +7,35 @@ const Entity = @import("./Entity.zig");
 pub const PrefabFn = *const fn (Allocator) anyerror!*Entity;
 const Self = @This();
 
-func: PrefabFn,
+id: []const u8,
+components: *anyopaque,
 
-pub fn new(comptime id: []const u8, comptime components: anytype) Self {
+addComponents: *const fn (entity: *Entity, ptr: *anyopaque) anyerror!void,
+
+pub fn init(id: []const u8, components: anytype) !Self {
+    const cptr = try loom.allocators.c.create(@TypeOf(components));
+    cptr.* = components;
+
     return Self{
-        .func = struct {
-            pub fn callback(alloc: Allocator) !*Entity {
-                const ptr = try Entity.create(alloc, id);
-                try ptr.addComponents(components);
+        .id = id,
+        .components = cptr,
+        .addComponents = struct {
+            pub fn callback(entity: *Entity, ptr: *anyopaque) !void {
+                const component_ptr: *@TypeOf(components) = @ptrCast(@alignCast(ptr));
 
-                return ptr;
+                try entity.addComponents(component_ptr.*);
             }
         }.callback,
     };
 }
 
-pub fn makeInstance(self: Self, alloc: Allocator) !*Entity {
-    return try self.func(alloc);
+pub fn makeInstance(self: Self) !*Entity {
+    const ptr = try Entity.create(loom.allocators.scene(), self.id);
+    try self.addComponents(ptr, self.components);
+
+    return ptr;
+}
+
+pub fn deinit(self: Self) void {
+    loom.allocators.c.free(self.components);
 }

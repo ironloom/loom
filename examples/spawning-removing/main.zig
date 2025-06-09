@@ -4,17 +4,14 @@ const loom = @import("loom");
 const prefabs = @import("prefabs.zig");
 
 pub fn main() !void {
-    loom.project({
-        loom.window.size.set(.{ .x = 1280, .y = 720 });
-        loom.window.clear_color = .white;
-        loom.window.resizing.enable();
-
-        loom.useAssetPaths(.{
-            .debug = "./",
-        });
+    loom.project(.{
+        .window = .{
+            .resizable = true,
+        },
+        .asset_paths = .{ .debug = "./" },
     })({
         loom.scene("default")({
-            loom.prefabs(.{
+            loom.prefabs(&.{
                 try prefabs.Spawner(.init(
                     0,
                     0,

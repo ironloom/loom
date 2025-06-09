@@ -18,7 +18,7 @@ pub const files = struct {
         pub var debug: []const u8 = "src" ++ std.fs.path.sep_str ++ "assets";
         pub var release: []const u8 = "assets";
 
-        pub fn use(comptime config: struct {
+        pub fn use(config: struct {
             debug: ?[]const u8 = null,
             release: ?[]const u8 = null,
         }) void {

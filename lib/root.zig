@@ -73,19 +73,60 @@ pub fn quit() void {
     running = false;
 }
 
-pub fn project(_: void) *const fn (void) void {
+pub const ProjectConfig = struct {
+    pub const WindowConfig = struct {
+        title: [:0]const u8 = "untitled loom project",
+        size: Vector2 = .init(1280, 720),
+
+        restore_state: bool = false,
+
+        borderless: bool = false,
+        fullscreen: bool = false,
+        resizable: bool = false,
+
+        fps_target: i32 = 256,
+        vsync: bool = false,
+
+        clear_color: rl.Color = .white,
+    };
+
+    pub const AssetPathConfig = struct {
+        debug: ?[]const u8 = null,
+        release: ?[]const u8 = null,
+    };
+
+    window: WindowConfig = .{},
+    asset_paths: AssetPathConfig = .{},
+};
+
+pub fn project(config: ProjectConfig) *const fn (void) void {
     rl.setTraceLogLevel(.warning);
 
     time.init();
 
     window.init();
+
+    window.title.set(config.window.title);
+    window.size.set(config.window.size);
+
+    window.restore_state.set(config.window.restore_state);
+
+    window.borderless.set(config.window.borderless);
+    window.fullscreen.set(config.window.fullscreen);
+    window.resizing.set(config.window.resizable);
+
+    window.fpsTarget.set(config.window.fps_target);
+    window.vsync.set(config.window.vsync);
+    window.clear_color = config.window.clear_color;
+
+    assets.files.paths.use(.{
+        .debug = config.asset_paths.debug,
+        .release = config.asset_paths.release,
+    });
+
     window.restore_state.load() catch {
         std.log.err("failed to load window state", .{});
     };
-
-    // Switcheroo to make sure vsync actually gets set :D
-    window.vsync.toggle();
-    window.vsync.toggle();
 
     display.init();
     ui.init() catch @panic("UI INIT FAILED");
@@ -179,12 +220,10 @@ pub fn scene(id: []const u8) *const fn (void) void {
     }.callback;
 }
 
-pub fn prefabs(prefab_tuple: anytype) void {
-    var arr = Array(Prefab).init(prefab_tuple, .{ .on_type_change_fail = .ignore }) catch return;
-    defer arr.deinit();
-
+pub fn prefabs(prefab_array: []const Prefab) void {
     const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
-    selected_scene.addPrefabs(arr) catch {
+    
+    selected_scene.addPrefabs(prefab_array) catch {
         std.log.err("couldn't add prefabs", .{});
     };
 }

@@ -144,10 +144,10 @@ pub fn addPrefab(self: *Self, prefab: loom.Prefab) !void {
     try self.prefabs.append(prefab);
 }
 
-pub fn addPrefabs(self: *Self, prefab_tuple: loom.Array(loom.Prefab)) !void {
+pub fn addPrefabs(self: *Self, prefabs: []const loom.Prefab) !void {
     if (!self.is_alive) return;
 
-    for (prefab_tuple.items) |prefab| {
+    for (prefabs) |prefab| {
         try self.addPrefab(prefab);
     }
 }

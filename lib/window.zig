@@ -243,7 +243,7 @@ pub const title = struct {
 ///
 /// You can toggle this setting via `.enable()` and `.disable()`.
 pub const restore_state = struct {
-    var use: bool = true;
+    var use: bool = false;
 
     pub fn enable() void {
         use = true;
@@ -251,6 +251,14 @@ pub const restore_state = struct {
 
     pub fn disable() void {
         use = false;
+    }
+
+    pub fn set(to: bool) void {
+        use = to;
+    }
+
+    pub fn get() bool {
+        return use;
     }
 
     pub fn save() !void {

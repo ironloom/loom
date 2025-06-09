@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) !void {
         "components",
     };
 
+    const run_all_step = b.step("example=all", "");
     inline for (examples) |example| {
         const exe_mod = b.createModule(.{
             .root_source_file = b.path("examples/" ++ example ++ "/main.zig"),
@@ -76,5 +77,6 @@ pub fn build(b: *std.Build) !void {
 
         const run_step = b.step("example=" ++ example, "");
         run_step.dependOn(&run_cmd.step);
+        run_all_step.dependOn(&run_cmd.step);
     }
 }

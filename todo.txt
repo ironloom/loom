@@ -1,5 +1,6 @@
 +---------------------------------[INFORMATION]-------------------------------+
 @root       changes to the root.zig source file
+@tooling    tools to make debugging easier
 @examples   changes to examples
 @display    changes to the display.zig source file
 @builtin-components
@@ -29,6 +30,7 @@ x 2025-06-09 add: example for Z-Y display sorting @examples
 
 +v0.1.4
 x 2025-06-09 fix: removeComponent @ecs
+x 2025-06-09 update: project(void)(void) to project(ProjectConfig)(void) @root
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
@@ -39,7 +41,8 @@ add: loading-screen @builtin-components
     NOTE:   The loading-screen builtin component will display a ui until the 
             component is disabled/removed or the entity is destructed.
 
-update: project(void)(void) to project(configStruct)(void) @root
 chore: clean up root.zig @root 
 
 release: v0.2.0 @release
+
+add: debug ui @tooling

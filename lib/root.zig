@@ -2,6 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = @import("std").mem.Allocator;
 
+// Types and Basic Utilities
+// --------------------------------------------------------------------------------------------------------------
+
 pub const rl = @import("raylib");
 pub const clay = @import("zclay");
 pub const uuid = @import("uuid");
@@ -26,6 +29,13 @@ pub const Vector3 = rl.Vector3;
 pub const Vector4 = rl.Vector4;
 pub const Rectangle = rl.Rectangle;
 pub const Color = rl.Color;
+
+pub const Behaviour = ecs.Behaviour;
+pub const Entity = ecs.Entity;
+pub const Prefab = ecs.Prefab;
+pub const Scene = eventloop.Scene;
+
+pub const UUIDv7 = uuid.v7.new;
 
 pub const Dimensions = clay.Dimensions;
 
@@ -72,6 +82,9 @@ var running = true;
 pub fn quit() void {
     running = false;
 }
+
+// Creating the project
+// --------------------------------------------------------------------------------------------------------------
 
 pub const ProjectConfig = struct {
     pub const WindowConfig = struct {
@@ -222,11 +235,16 @@ pub fn scene(id: []const u8) *const fn (void) void {
 
 pub fn prefabs(prefab_array: []const Prefab) void {
     const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
-    
+
     selected_scene.addPrefabs(prefab_array) catch {
         std.log.err("couldn't add prefabs", .{});
     };
 }
+
+pub const prefab = Prefab.init;
+
+// Runtime Entity / Scene Handling
+// --------------------------------------------------------------------------------------------------------------
 
 const SummonTag = enum {
     entity,
@@ -249,7 +267,6 @@ pub fn summon(entities_prefabs: []const SummonUnion) !void {
     }
 }
 
-pub const prefab = Prefab.init;
 pub fn makeEntity(id: []const u8, components: anytype) !*Entity {
     const ptr = try Entity.create(allocators.generic(), id);
     try ptr.addComponents(components);
@@ -304,6 +321,9 @@ pub fn removeEntity(target: RemoveEntityTargetType) void {
         .ptr => |ptr| ascene.removeEntityByPtr(ptr),
     }
 }
+
+// Allocators
+// --------------------------------------------------------------------------------------------------------------
 
 pub const allocators = struct {
     fn AllocatorInstance(comptime T: type) type {
@@ -373,12 +393,8 @@ pub const allocators = struct {
     };
 };
 
-pub const Behaviour = ecs.Behaviour;
-pub const Entity = ecs.Entity;
-pub const Prefab = ecs.Prefab;
-pub const Scene = eventloop.Scene;
-
-pub const UUIDv7 = uuid.v7.new;
+// CoerceTo
+// --------------------------------------------------------------------------------------------------------------
 
 fn safeIntCast(comptime T: type, value2: anytype) T {
     if (std.math.maxInt(T) < value2) {
@@ -604,6 +620,9 @@ test coerceTo {
     try expect(coerceTo(*usize, anyopaque_ptr_of_int) == &int);
 }
 
+// Vector Types
+// --------------------------------------------------------------------------------------------------------------
+
 pub fn Vec2(x: anytype, y: anytype) Vector2 {
     return Vector2{
         .x = tof32(x),
@@ -681,6 +700,9 @@ pub fn dimsToVec2(dims: Dimensions) Vector2 {
         .y = dims.h,
     };
 }
+
+// Other Utilities
+// --------------------------------------------------------------------------------------------------------------
 
 pub fn OptionalToError(comptime Optional: type) type {
     const typeinfo = @typeInfo(Optional);

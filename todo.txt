@@ -7,6 +7,7 @@
             changes to the source files under builtin-components/
 @ecs        changes to the source files under ecs/
 @release    publish a major/minor version
+@repo       stuff relating to the repository
 
 +----------------------------------[FINISHED]---------------------------------+
 
@@ -31,18 +32,18 @@ x 2025-06-09 add: example for Z-Y display sorting @examples
 +v0.1.4
 x 2025-06-09 fix: removeComponent @ecs
 x 2025-06-09 update: project(void)(void) to project(ProjectConfig)(void) @root
+x 2025-06-09 chore: clean up root.zig @root 
+x 2025-06-09 update(readme): use #stable branch as package base @repo 
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-add: loading-screen @builtin-components
-    NOTE:   The loading-screen builtin component will display a ui until the 
-            component is disabled/removed or the entity is destructed.
-
-chore: clean up root.zig @root 
-
 release: v0.2.0 @release
 
 add: debug ui @tooling
+new: tread spawning for complex tasks 
+add: loading-screen @builtin-components
+    NOTE:   The loading-screen builtin component will display a ui until the 
+            component is disabled/removed or the entity is destructed.

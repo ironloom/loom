@@ -19,7 +19,7 @@ Adding loom is easy, just follow these steps:
 1. Fetch the package.
 
    ```sh
-   zig fetch --save git+https://github.com/zewenn/loom
+   zig fetch --save git+https://github.com/zewenn/loom#stable
    ```
 
 2. Get the module.

@@ -37,10 +37,9 @@ x 2025-06-09 update(readme): use #stable branch as package base @repo
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
+release: v0.2.0 @release
 
 +-----------------------------------[TO_DO]-----------------------------------+
-
-release: v0.2.0 @release
 
 add: debug ui @tooling
 new: tread spawning for complex tasks 

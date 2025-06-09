@@ -10,6 +10,7 @@ pub const Renderer = struct {
     display: struct {
         img_path: []const u8,
         tint: rl.Color,
+        fill_color: ?rl.Color,
     },
     entity: ?*loom.Entity = null,
 };
@@ -22,7 +23,7 @@ fn sort(_: void, lsh: Renderer, rsh: Renderer) bool {
         return true
     else if (lsh.transform.position.z == rsh.transform.position.z)
         if (lsh.transform.position.y < rsh.transform.position.y) return true;
-        
+
     return false;
 }
 
@@ -103,6 +104,18 @@ pub fn render() void {
                 loom.window.clear_color,
             );
         }
+
+        if (item.display.fill_color) |color| rl.drawRectanglePro(
+            loom.Rect(
+                item.transform.position.x,
+                item.transform.position.y,
+                item.transform.scale.x,
+                item.transform.scale.y,
+            ),
+            loom.Vec2(item.transform.scale.x / 2, item.transform.scale.y / 2),
+            item.transform.rotation,
+            color,
+        );
 
         rl.drawTexturePro(
             item.texture,

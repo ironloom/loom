@@ -1,3 +1,12 @@
++---------------------------------[INFORMATION]-------------------------------+
+@root       changes to the root.zig source file
+@examples   changes to examples
+@display    changes to the display.zig source file
+@builtin-components
+            changes to the source files under builtin-components/
+@ecs        changes to the source files under ecs/
+
+
 +----------------------------------[FINISHED]---------------------------------+
 
 +v0.1.0
@@ -14,14 +23,17 @@ x 2025-06-09 change Prefabs to be comptime again
             get an Entity.
 x 2025-06-09 update readme.md with install instructions
 
++v0.1.3 
+x 2025-06-09 add: display sorting based on y-index @display
+x 2025-06-09 add: example for Z-Y display sorting @examples
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
-add display sorting based on y-index
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-fix removeComponent
-add auto tiling system
-change project(void)(void) to project(configStruct)(void)
+fix: removeComponent @ecs
+add: auto tiling system @builtin-components
 
-clean up root.zig
+update: project(void)(void) to project(configStruct)(void) @root
+chore: clean up root.zig @root 

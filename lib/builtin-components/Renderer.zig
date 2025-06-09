@@ -28,6 +28,7 @@ const Self = @This();
 img_path: []const u8,
 tile_size: ?loom.Vector2 = null,
 tint: rl.Color = rl.Color.white,
+fill_color: ?rl.Color = null,
 
 transform: ?*Transform = null,
 display_cache: ?*DisplayCache = null,
@@ -48,15 +49,17 @@ pub fn tile(path: []const u8, tile_size: loom.Vector2) Self {
 }
 
 pub fn init(config: struct {
-    img_path: []const u8,
-    tint: rl.Color,
+    img_path: []const u8 = "[INVALID]",
+    tint: rl.Color = rl.Color.white,
 
     tile_size: ?loom.Vector2 = null,
+    fill_color: ?rl.Color = null,
 }) Self {
     return Self{
         .img_path = config.img_path,
         .tint = config.tint,
         .tile_size = config.tile_size,
+        .fill_color = config.fill_color,
     };
 }
 
@@ -122,6 +125,7 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
         .display = .{
             .img_path = self.img_path,
             .tint = self.tint,
+            .fill_color = self.fill_color,
         },
         .entity = entity,
     });

@@ -35,14 +35,20 @@ x 2025-06-09 update: project(void)(void) to project(ProjectConfig)(void) @root
 x 2025-06-09 chore: clean up root.zig @root 
 x 2025-06-09 update(readme): use #stable branch as package base @repo 
 
-+v0.2.0
+VERSION:0.2.0 +MAJOR_RELEASE
 x 2025-06-09 release: v0.2.0 @release
 
 +0.2.1
 x 2025-06-10 fix: collider rotation
 
++v0.3.0
+x 2025-06-10 add: global behaviours @ecs 
+    NOTE:   Global behaviours are scene scoped. They are not tied to entities
+            only the executing scene.
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
+add: sound asset streaming
 
 +-----------------------------------[TO_DO]-----------------------------------+
 

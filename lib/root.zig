@@ -30,6 +30,7 @@ pub const Vector4 = rl.Vector4;
 pub const Rectangle = rl.Rectangle;
 pub const Color = rl.Color;
 
+pub const GlobalBehaviour = ecs.GlobalBehaviour;
 pub const Behaviour = ecs.Behaviour;
 pub const Entity = ecs.Entity;
 pub const Prefab = ecs.Prefab;
@@ -64,6 +65,7 @@ pub fn worldToScreenPos(pos: Vector2) Vector2 {
 }
 
 pub const ecs = struct {
+    pub const GlobalBehaviour = @import("./ecs/GlobalBehaviour.zig");
     pub const Behaviour = @import("./ecs/Behaviour.zig");
     pub const Entity = @import("./ecs/Entity.zig");
     pub const Prefab = @import("./ecs/Prefab.zig");
@@ -238,6 +240,14 @@ pub fn prefabs(prefab_array: []const Prefab) void {
 
     selected_scene.addPrefabs(prefab_array) catch {
         std.log.err("couldn't add prefabs", .{});
+    };
+}
+
+pub fn globalBehaviours(behaviours: anytype) void {
+    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+
+    selected_scene.useGlobalBehaviours(behaviours) catch |err| {
+        std.log.err("failed to apply global behaviours for scene: \"{s}\". error: {any}", .{ selected_scene.id, err });
     };
 }
 

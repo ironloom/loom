@@ -53,6 +53,7 @@ pub fn build(b: *std.Build) !void {
         "spawning-removing",
         "display-sorting",
         "components",
+        "global-behaviours",
     };
 
     const run_all_step = b.step("example=all", "");

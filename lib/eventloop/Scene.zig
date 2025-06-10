@@ -3,6 +3,7 @@ const Allocator = @import("std").mem.Allocator;
 
 const loom = @import("../root.zig");
 const Entity = loom.Entity;
+const GlobalBehaviour = loom.GlobalBehaviour;
 
 const Self = @This();
 var active: ?*Self = null;
@@ -12,8 +13,10 @@ uuid: u128,
 alloc: Allocator,
 
 prefabs: std.ArrayList(loom.Prefab),
-entities: std.ArrayList(*loom.Entity),
-new_entities: std.ArrayList(*loom.Entity),
+entities: std.ArrayList(*Entity),
+new_entities: std.ArrayList(*Entity),
+
+behaviours: std.ArrayList(*GlobalBehaviour),
 
 is_active: bool = false,
 is_alive: bool = false,
@@ -30,6 +33,7 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
         .prefabs = .init(allocator),
         .entities = .init(allocator),
         .new_entities = .init(allocator),
+        .behaviours = .init(allocator),
     };
 }
 
@@ -44,6 +48,7 @@ pub fn deinit(self: *Self) void {
     self.unload();
 
     self.prefabs.deinit();
+    self.behaviours.deinit();
 }
 
 pub fn destroy(self: *Self) void {
@@ -53,6 +58,14 @@ pub fn destroy(self: *Self) void {
 
 pub fn load(self: *Self) !void {
     if (!self.is_alive) return;
+
+    for (self.behaviours.items) |behaviour| {
+        behaviour.callSafe(.awake, self);
+    }
+
+    for (self.behaviours.items) |behaviour| {
+        behaviour.callSafe(.start, self);
+    }
 
     for (self.prefabs.items) |prefabs| {
         const entity = try prefabs.makeInstance();
@@ -79,6 +92,10 @@ pub fn unload(self: *Self) void {
         item.dispatchEvent(.end);
     }
 
+    for (self.behaviours.items) |behaviour| {
+        behaviour.callSafe(.end, self);
+    }
+
     const clone = loom.Array(*loom.Entity).fromArrayList(self.entities) catch return;
     defer clone.deinit();
 
@@ -98,6 +115,12 @@ pub fn unload(self: *Self) void {
 
 pub fn execute(self: *Self) void {
     const is_tick = self.last_tick_at + 1.0 / loom.tof64(self.ticks_per_second) <= loom.time.appTime();
+
+    for (self.behaviours.items) |behaviour| {
+        behaviour.callSafe(.update, self);
+
+        if (is_tick) behaviour.callSafe(.tick, self);
+    }
 
     for (self.new_entities.items) |entity| {
         if (entity.remove_next_frame) continue;
@@ -229,4 +252,20 @@ pub fn isEntityAliveId(self: *Self, id: []const u8) bool {
 
 pub fn isEntityAliveUuid(self: *Self, uuid: u128) bool {
     return isEntityAlive(self, uuid, uuidEqls);
+}
+
+pub fn useGlobalBehaviours(self: *Self, behaviours: anytype) !void {
+    if (self.is_active) @panic("cannot change the behaviours of an active scene");
+    
+    for (self.behaviours.items) |behaviour| {
+        behaviour.callSafe(.end, self);
+    }
+    self.behaviours.clearAndFree();
+
+    inline for (behaviours) |component| {
+        const ptr = try self.alloc.create(GlobalBehaviour);
+        ptr.* = try GlobalBehaviour.init(component);
+
+        try self.behaviours.append(ptr);
+    }
 }

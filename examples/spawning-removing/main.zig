@@ -6,6 +6,7 @@ const prefabs = @import("prefabs.zig");
 pub fn main() !void {
     loom.project(.{
         .window = .{
+            .title = "loom example: spawning / removing",
             .resizable = true,
         },
         .asset_paths = .{ .debug = "./" },

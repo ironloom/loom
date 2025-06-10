@@ -98,8 +98,6 @@ pub const resizing = struct {
     }
 
     pub inline fn set(to: bool) void {
-        if (to == is_resizable) return;
-
         is_resizable = to;
         config_flags.set(.{ .window_resizable = true }, is_resizable);
     }
@@ -208,11 +206,11 @@ pub const config_flags = struct {
         }
 
         if (enable) {
-            rl.clearWindowState(flags);
+            rl.setWindowState(flags);
             return;
         }
 
-        rl.setWindowState(flags);
+        rl.clearWindowState(flags);
     }
 
     pub fn get(flag: ConfigFlags) bool {

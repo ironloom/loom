@@ -6,14 +6,6 @@ const Transform = @import("./Transform.zig");
 const Vector2 = loom.Vector2;
 
 pub const RectangleCollider = struct {
-    const MinMax = struct {
-        x_min: f32 = 0,
-        x_max: f32 = 0,
-
-        y_min: f32 = 0,
-        y_max: f32 = 0,
-    };
-
     /// ```
     /// A +---------+ B
     ///   |    * O  |
@@ -21,38 +13,27 @@ pub const RectangleCollider = struct {
     /// ```
     /// ABCD Rectangle, with O center. O is the position A;B;C;D are relative to.
     const Vertices = struct {
-        A: Vector2, // top-left
-        B: Vector2, // top-right
-        C: Vector2, // bottom-right
-        D: Vector2, // bottom-left
+        A: Vector2,
+        B: Vector2,
+        C: Vector2,
+        D: Vector2,
 
         pub fn init(scale: Vector2, sin_theta: f32, cos_theta: f32) Vertices {
             const half_width = scale.x / 2;
             const half_height = scale.y / 2;
 
-            var A: Vector2 = .init(-1 * half_width, -1 * half_height);
-            {
-                A.x = A.x * cos_theta - A.y * sin_theta;
-                A.y = A.x * sin_theta + A.y * cos_theta;
-            }
+            var A: Vector2 = .init(
+                (-1 * half_width) * cos_theta - (-1 * half_height) * sin_theta,
+                (-1 * half_width) * sin_theta + (-1 * half_height) * cos_theta,
+            );
 
-            var B: Vector2 = .init(half_width, -1 * half_height);
-            {
-                B.x = B.x * cos_theta - B.y * sin_theta;
-                B.y = B.x * sin_theta + B.y * cos_theta;
-            }
+            var B: Vector2 = .init(
+                half_width * cos_theta - (-1 * half_height) * sin_theta,
+                half_width * sin_theta + (-1 * half_height) * cos_theta,
+            );
 
-            var C: Vector2 = .init(half_width, half_height);
-            {
-                C.x = C.x * cos_theta - C.y * sin_theta;
-                C.y = C.x * sin_theta + C.y * cos_theta;
-            }
-
-            var D: Vector2 = .init(-1 * half_width, half_height);
-            {
-                D.x = D.x * cos_theta - D.y * sin_theta;
-                D.y = D.x * sin_theta + D.y * cos_theta;
-            }
+            const C: Vector2 = A.negate();
+            const D: Vector2 = B.negate();
 
             return Vertices{
                 .A = A,
@@ -71,12 +52,15 @@ pub const RectangleCollider = struct {
             };
         }
 
-        pub fn getMinMax(self: Vertices) MinMax {
-            return MinMax{
-                .x_min = @min(@min(self.A.x, self.B.x), @min(self.C.x, self.D.x)),
-                .x_max = @max(@max(self.A.x, self.B.x), @max(self.C.x, self.D.x)),
-                .y_min = @min(@min(self.A.y, self.B.y), @min(self.C.y, self.D.y)),
-                .y_max = @max(@max(self.A.y, self.B.y), @max(self.C.y, self.D.y)),
+        pub fn getAxes(self: Vertices) [4]Vector2 {
+            const AB = self.B.subtract(self.A);
+            const BC = self.C.subtract(self.B);
+
+            return [4]Vector2{
+                AB.normalize(),
+                BC.normalize(),
+                AB.normalize().negate(),
+                BC.normalize().negate(),
             };
         }
     };
@@ -104,7 +88,6 @@ pub const RectangleCollider = struct {
 
     deltas: Vertices = .zero(),
     points: ?Vertices = null,
-    minmax: ?MinMax = null,
 
     sin_theta: f32 = 0,
     cos_theta: f32 = 0,
@@ -164,45 +147,114 @@ pub const RectangleCollider = struct {
         };
     }
 
-    pub fn overlaps(self: *Self, other: *Self) bool {
-        const self_minmax = self.minmax orelse return false;
-        const other_minmax = other.minmax orelse return false;
+    fn checkOverlapOnAxis(rect1_points: Vertices, rect2_points: Vertices, axis: Vector2) bool {
+        var min1: f32 = std.math.floatMax(f32);
+        var max1: f32 = std.math.floatMin(f32);
+        var min2: f32 = std.math.floatMax(f32);
+        var max2: f32 = std.math.floatMin(f32);
 
-        if ((self_minmax.x_max > other_minmax.x_min and self_minmax.x_min < other_minmax.x_max) and
-            (self_minmax.y_max > other_minmax.y_min and self_minmax.y_min < other_minmax.y_max))
-            return true;
-        return false;
+        const points1 = [4]Vector2{ rect1_points.A, rect1_points.B, rect1_points.C, rect1_points.D };
+        for (points1) |point| {
+            const projection = point.dotProduct(axis);
+            if (projection < min1) min1 = projection;
+            if (projection > max1) max1 = projection;
+        }
+
+        const points2 = [4]Vector2{ rect2_points.A, rect2_points.B, rect2_points.C, rect2_points.D };
+        for (points2) |point| {
+            const projection = point.dotProduct(axis);
+            if (projection < min2) min2 = projection;
+            if (projection > max2) max2 = projection;
+        }
+
+        return (max1 >= min2 and max2 >= min1);
+    }
+
+    pub fn getOverlap(self: *Self, other: *Self) ?Vector2 {
+        const self_points = self.points orelse return null;
+        const other_points = other.points orelse return null;
+
+        const axes1 = self_points.getAxes();
+        const axes2 = other_points.getAxes();
+
+        var min_overlap: f32 = std.math.floatMax(f32);
+        var minimum_translation_vector: Vector2 = .init(0, 0);
+
+        const all_axes = [8]Vector2{
+            axes1[0], axes1[1], axes1[2], axes1[3],
+            axes2[0], axes2[1], axes2[2], axes2[3],
+        };
+
+        for (all_axes) |axis| {
+            var min1: f32 = std.math.floatMax(f32);
+            var max1: f32 = std.math.floatMin(f32);
+            var min2: f32 = std.math.floatMax(f32);
+            var max2: f32 = std.math.floatMin(f32);
+
+            const points1 = [4]Vector2{ self_points.A, self_points.B, self_points.C, self_points.D };
+            for (points1) |point| {
+                const projection = point.dotProduct(axis);
+                if (projection < min1) min1 = projection;
+                if (projection > max1) max1 = projection;
+            }
+
+            const points2 = [4]Vector2{ other_points.A, other_points.B, other_points.C, other_points.D };
+            for (points2) |point| {
+                const projection = point.dotProduct(axis);
+                if (projection < min2) min2 = projection;
+                if (projection > max2) max2 = projection;
+            }
+
+            if (!(max1 >= min2 and max2 >= min1)) {
+                return null;
+            }
+
+            const overlap = @min(max1, max2) - @max(min1, min2);
+            if (overlap < min_overlap) {
+                min_overlap = overlap;
+                minimum_translation_vector = axis.multiply(loom.Vec2(overlap, overlap));
+            }
+        }
+
+        const self_center = self.center() catch return null;
+        const other_center = other.center() catch return null;
+        const center_diff = self_center.subtract(other_center);
+        if (minimum_translation_vector.dotProduct(center_diff) < 0) {
+            minimum_translation_vector = minimum_translation_vector.negate();
+        }
+
+        return minimum_translation_vector;
+    }
+
+    pub fn overlaps(self: *Self, other: *Self) bool {
+        const self_points = self.points orelse return false;
+        const other_points = other.points orelse return false;
+
+        const axes1 = self_points.getAxes();
+        const axes2 = other_points.getAxes();
+
+        for (axes1) |axis| {
+            if (!RectangleCollider.checkOverlapOnAxis(self_points, other_points, axis)) {
+                return false;
+            }
+        }
+
+        for (axes2) |axis| {
+            if (!RectangleCollider.checkOverlapOnAxis(self_points, other_points, axis)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     pub fn pushback(a: *Self, b: *Self, weight: f32) !void {
         const a_transform: *Transform = try loom.ensureComponent(a.transform);
 
-        const a_minmax = a.minmax orelse return;
-        const b_minmax = b.minmax orelse return;
+        const overlap_vector = a.getOverlap(b) orelse return;
 
-        const overlap_x = @min(a_minmax.x_max - b_minmax.x_min, b_minmax.x_max - a_minmax.x_min);
-        const overlap_y = @min(a_minmax.y_max - b_minmax.y_min, b_minmax.y_max - a_minmax.y_min);
-
-        switch (overlap_x < overlap_y) {
-            true => PushBack_X: {
-                if (a_minmax.x_max > b_minmax.x_min and a_minmax.x_max < b_minmax.x_max) {
-                    a_transform.position.x -= overlap_x * weight;
-                    break :PushBack_X;
-                }
-
-                a_transform.position.x += overlap_x * weight;
-                break :PushBack_X;
-            },
-            false => PushBack_Y: {
-                if (a_minmax.y_max > b_minmax.y_min and a_minmax.y_max < b_minmax.y_max) {
-                    a_transform.position.y -= overlap_y * weight;
-                    break :PushBack_Y;
-                }
-
-                a_transform.position.y += overlap_y * weight;
-                break :PushBack_Y;
-            },
-        }
+        a_transform.position.x += overlap_vector.x * weight;
+        a_transform.position.y += overlap_vector.y * weight;
     }
 
     pub fn Awake(self: *Self, entity: *loom.Entity) !void {
@@ -241,17 +293,15 @@ pub const RectangleCollider = struct {
             self.last_collider_transform = self.collider_transform;
         }
 
-        if (self_last_transform.rotation != self_transform.rotation or self.collider_transform.rotation != self.last_collider_transform.rotation)
+        if (self_last_transform.rotation != self_transform.rotation or self.collider_transform.rotation != self.last_collider_transform.rotation) {
             try self.recalculateRotation();
-
-        if (self.collider_transform.scale.equals(self.last_collider_transform.scale) == 0)
             self.recalculateDeltas();
-
-        if (self_last_transform.position.equals(self_transform.position) == 0 or self.last_collider_transform.position.equals(self.collider_transform.position) == 0)
             try self.recalculatePoints();
-
-        const self_points = self.points orelse return;
-        self.minmax = self_points.getMinMax();
+        } else if (self.collider_transform.scale.equals(self.last_collider_transform.scale) == 0) {
+            self.recalculateDeltas();
+            try self.recalculatePoints();
+        } else if (self_last_transform.position.equals(self_transform.position) == 0 or self.last_collider_transform.position.equals(self.collider_transform.position) == 0)
+            try self.recalculatePoints();
 
         for (colliders.items) |other| {
             if (other.entity.uuid == self.entity.uuid) continue;
@@ -268,17 +318,15 @@ pub const RectangleCollider = struct {
 
             if (self.R() + other.R() < std.math.hypot(self_center.x - other_center.x, self_center.y - other_center.y)) continue;
 
-            if (other_last_transform.rotation != other_transform.rotation or other.collider_transform.rotation != other.last_collider_transform.rotation)
+            if (other_last_transform.rotation != other_transform.rotation or other.collider_transform.rotation != other.last_collider_transform.rotation) {
                 try other.recalculateRotation();
-
-            if (other.collider_transform.scale.equals(other.last_collider_transform.scale) == 0)
                 other.recalculateDeltas();
-
-            if (other_last_transform.position.equals(other_transform.position) == 0 or other.last_collider_transform.position.equals(other.collider_transform.position) == 0)
                 try other.recalculatePoints();
-
-            const other_points = other.points orelse continue;
-            other.minmax = other_points.getMinMax();
+            } else if (other.collider_transform.scale.equals(other.last_collider_transform.scale) == 0) {
+                other.recalculateDeltas();
+                try other.recalculatePoints();
+            } else if (other_last_transform.position.equals(other_transform.position) == 0 or other.last_collider_transform.position.equals(other.collider_transform.position) == 0)
+                try other.recalculatePoints();
 
             if (!self.overlaps(other)) continue;
 

@@ -15,6 +15,64 @@ pub const Array = arrays.Array;
 pub const array = arrays.array;
 pub const arrayAdvanced = arrays.arrayAdvanced;
 
+test "Array(T) generic type" {
+    const expect = std.testing.expect;
+
+    var test_arr = try Array(u8).init(.{ 1, 2, 3, 4 }, .{
+        .allocator = std.testing.allocator,
+    });
+    defer test_arr.deinit();
+
+    var array_list = std.ArrayList(u8).init(std.testing.allocator);
+    defer array_list.deinit();
+
+    try array_list.append(1);
+
+    var from_array_list = try Array(u8).fromArrayList(array_list);
+    defer from_array_list.deinit();
+
+    try expect(from_array_list.len() == 1);
+
+    var from_slice = try Array(u8).fromConstArray(&.{ 1, 2, 3, 4 }, std.testing.allocator);
+    defer from_slice.deinit();
+
+    try expect(from_slice.len() == 4);
+
+    try expect(test_arr.at(0) == 1);
+    try expect(test_arr.at(1) == 2);
+    try expect(test_arr.at(2) == 3);
+    try expect(test_arr.at(3) == 4);
+
+    try expect(test_arr.len() == 4);
+    try expect(test_arr.lastIndex() == 3);
+
+    try expect(test_arr.getFirst() == 1);
+    try expect(test_arr.getLast() == 4);
+
+    test_arr.set(3, 5);
+    try expect(test_arr.at(3) == 5);
+
+    try expect(test_arr.at(4) == null);
+
+    try expect(test_arr.reduce(usize, struct {
+        pub fn callback(accumulator: usize, current: u8) !usize {
+            return accumulator + current;
+        }
+    }.callback, 0) == 5 + 3 + 2 + 1);
+
+    var mapped = try test_arr.map(usize, struct {
+        pub fn callback(current: u8) !usize {
+            return current + 10;
+        }
+    }.callback);
+    defer mapped.deinit();
+
+    try expect(mapped.at(0) == 11);
+    try expect(mapped.at(1) == 12);
+    try expect(mapped.at(2) == 13);
+    try expect(mapped.at(3) == 15);
+}
+
 var seed: u64 = undefined;
 var xoshiro: std.Random.Xoshiro256 = .init(0);
 pub var random: std.Random = xoshiro.random();

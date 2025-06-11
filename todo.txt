@@ -10,6 +10,7 @@ TAG                     | MEANING
 @ecs                    | changes to the source files under ecs/
 @release                | publish a major/minor version
 @repo                   | stuff relating to the repository
+@test                   | unit test changes
 
 +----------------------------------[FINISHED]---------------------------------+
 
@@ -47,12 +48,14 @@ x 2025-06-10 fix: collider rotation
 x 2025-06-10 add: global behaviours @ecs 
     NOTE:   Global behaviours are scene scoped. They are not tied to entities
             only the executing scene.
+x 2025-06-11 add: unit tests for Array(T) @test
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
-add: sound asset streaming
 
 +-----------------------------------[TO_DO]-----------------------------------+
+
+add: sound asset streaming
 
 add: debug ui @tooling
 new: tread spawning for complex tasks 

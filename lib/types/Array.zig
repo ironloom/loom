@@ -33,9 +33,7 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn init(tuple: anytype, options: ArrayOptions) !Self {
-            const allocator = loom.allocators.generic();
-
-            var list = std.ArrayList(T).init(allocator);
+            var list = std.ArrayList(T).init(options.allocator);
             defer list.deinit();
 
             inline for (tuple) |item| {
@@ -77,7 +75,7 @@ pub fn Array(comptime T: type) type {
             const new_slice = try list.toOwnedSlice();
 
             return Self{
-                .alloc = allocator,
+                .alloc = options.allocator,
                 .items = new_slice,
             };
         }

@@ -1,13 +1,15 @@
 +---------------------------------[INFORMATION]-------------------------------+
-@root       changes to the root.zig source file
-@tooling    tools to make debugging easier
-@examples   changes to examples
-@display    changes to the display.zig source file
-@builtin-components
-            changes to the source files under builtin-components/
-@ecs        changes to the source files under ecs/
-@release    publish a major/minor version
-@repo       stuff relating to the repository
+TAG                     | MEANING
+-------------------------------------------------------------------------------
+@root                   | changes to the root.zig source file
+@tooling                | tools to make debugging easier
+@examples               | changes to examples
+@display                | changes to the display.zig source file
+@assets                 | changes to the assets.zig source file
+@builtin-components     | changes to the source files under builtin-components/
+@ecs                    | changes to the source files under ecs/
+@release                | publish a major/minor version
+@repo                   | stuff relating to the repository
 
 +----------------------------------[FINISHED]---------------------------------+
 

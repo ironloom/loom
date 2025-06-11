@@ -131,6 +131,7 @@ pub const ecs = struct {
 
 pub const eventloop = @import("eventloop/eventloop.zig");
 pub const assets = @import("assets.zig");
+pub const audio = @import("audio.zig");
 pub const display = @import("display.zig");
 pub const time = @import("time.zig");
 pub const input = @import("input.zig");
@@ -178,6 +179,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     time.init();
 
     window.init();
+    audio.init();
 
     window.title.set(config.window.title);
     window.size.set(config.window.size);
@@ -245,6 +247,8 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
                     std.log.debug("failed to load next scene!", .{});
                 };
 
+                audio.update();
+
                 rl.beginDrawing();
                 defer rl.endDrawing();
 
@@ -272,8 +276,9 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
                 std.log.err("failed to save window state", .{});
             };
 
-            assets.deinit();
+            audio.deinit();
 
+            assets.deinit();
             window.deinit();
 
             if (allocators.AI_arena.interface) |arena| {
@@ -797,6 +802,10 @@ pub fn randColor() rl.Color {
         random.int(u8),
         random.int(u8),
     );
+}
+
+pub fn randFloat(comptime T: type, min: T, max: T) T {
+    return random.float(T) * (max - min) + min;
 }
 
 pub fn cloneToOwnedSlice(comptime T: type, list: std.ArrayList(T)) ![]T {

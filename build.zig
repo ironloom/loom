@@ -54,6 +54,7 @@ pub fn build(b: *std.Build) !void {
         "display-sorting",
         "components",
         "global-behaviours",
+        "audio",
     };
 
     const run_all_step = b.step("example=all", "");

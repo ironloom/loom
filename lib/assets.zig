@@ -294,8 +294,29 @@ pub const font = AssetCache(
     }.callback,
 );
 
+pub const sound = AssetCache(
+    Sound,
+    struct {
+        pub fn callback(data: []const u8, filetype: []const u8, _: anytype) !Sound {
+            const str: [:0]const u8 = try loom.allocators.generic().dupeZ(u8, filetype);
+            defer loom.allocators.generic().free(str);
+
+            const wave = try loom.rl.loadWaveFromMemory(str, data);
+            defer loom.rl.unloadWave(wave);
+
+            return loom.rl.loadSoundFromWave(wave);
+        }
+    }.callback,
+    struct {
+        pub fn callback(data: Sound) void {
+            loom.rl.unloadSound(data);
+        }
+    }.callback,
+);
+
 pub fn deinit() void {
     texture.deinit();
     image.deinit();
     font.deinit();
+    sound.deinit();
 }

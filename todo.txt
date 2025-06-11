@@ -67,7 +67,3 @@ x 2025-06-11 add: audio interface:
 
 
 add: debug ui @tooling
-new: tread spawning for complex tasks 
-add: loading-screen @builtin-components
-    NOTE:   The loading-screen builtin component will display a ui until the 
-            component is disabled/removed or the entity is destructed.

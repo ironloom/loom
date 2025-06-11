@@ -436,9 +436,7 @@ pub const allocators = struct {
         };
     }
 
-    /// If `eventloop` has an Scene loaded, this is a shorthand for
-    /// `fyr.eventloop.active_scene.allocator()`, otherwise this is the
-    /// same as `arena`.
+    /// This allocator destroys all allocated memory when a new scene is loaded.
     pub inline fn scene() Allocator {
         return AI_scene.allocator orelse Blk: {
             AI_scene.interface = std.heap.ArenaAllocator.init(generic());

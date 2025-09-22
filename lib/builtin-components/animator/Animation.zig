@@ -99,7 +99,7 @@ fn makeKeysArrayList(self: *Self) *std.ArrayList(i32) {
 fn makeKeySliceAndSort(self: *Self) !void {
     const array_list = self.makeKeysArrayList();
 
-    self.keys = try loom.cloneToOwnedSlice(i32, array_list.*);
+    self.keys = try loom.cloneToOwnedSlice(i32, self.alloc, array_list.*);
     self.sortKeys();
 }
 

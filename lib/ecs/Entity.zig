@@ -21,8 +21,8 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
     return Self{
         .id = id,
         .uuid = UUID.v7.new(),
-        .prepared_components = .init(allocator),
-        .components = .init(allocator),
+        .prepared_components = .empty,
+        .components = .empty,
         .alloc = allocator,
     };
 }
@@ -51,14 +51,14 @@ pub fn deinit(self: *Self) void {
             item.callSafe(.end, self);
         self.alloc.destroy(item);
     }
-    self.components.deinit();
+    self.components.deinit(self.alloc);
 
     for (self.prepared_components.items) |item| {
         if (!self.end_dispatched)
             item.callSafe(.end, self);
         self.alloc.destroy(item);
     }
-    self.prepared_components.deinit();
+    self.prepared_components.deinit(self.alloc);
 
     if (self.allocated_id) {
         self.alloc.free(self.id);
@@ -70,7 +70,7 @@ pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {
     if (self.prepared_components.items.len == 0) return;
 
     for (self.prepared_components.items) |component| {
-        try self.components.append(component);
+        try self.components.append(self.alloc, component);
     }
 
     if (dispatch_events) for (self.prepared_components.items) |item| {
@@ -78,7 +78,7 @@ pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {
         item.callSafe(.start, self);
     };
 
-    self.prepared_components.clearAndFree();
+    self.prepared_components.clearAndFree(self.alloc);
 }
 
 pub fn destroy(self: *Self) void {
@@ -90,7 +90,7 @@ pub fn addComponent(self: *Self, component: anytype) !void {
     const ptr = try self.alloc.create(Behaviour);
     ptr.* = try Behaviour.init(component);
 
-    try self.prepared_components.append(ptr);
+    try self.prepared_components.append(self.alloc, ptr);
 }
 
 pub fn addComponents(self: *Self, components: anytype) !void {

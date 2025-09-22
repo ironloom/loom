@@ -16,17 +16,17 @@ var alloc = std.heap.smp_allocator;
 var unload_on_next_frame = false;
 
 pub fn init(allocator: Allocator) void {
-    scenes = .init(allocator);
+    scenes = .empty;
     alloc = allocator;
 }
 
 pub fn deinit() void {
-    const s = scenes orelse return;
+    const s = &(scenes orelse return);
     for (s.items) |scene| {
         scene.deinit();
         alloc.destroy(scene);
     }
-    s.deinit();
+    s.deinit(alloc);
 }
 
 pub fn addScene(scene: Scene) !void {
@@ -34,7 +34,7 @@ pub fn addScene(scene: Scene) !void {
     const ptr = try alloc.create(Scene);
     ptr.* = scene;
 
-    try scenes_ptr.append(ptr);
+    try scenes_ptr.append(alloc, ptr);
     open_scene = ptr;
 }
 

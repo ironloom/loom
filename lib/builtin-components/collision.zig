@@ -262,9 +262,9 @@ pub const RectangleCollider = struct {
         self.last_collider_transform = self.collider_transform;
 
         if (collidables == null) {
-            collidables = .init(loom.allocators.scene());
+            collidables = .empty;
         }
-        try collidables.?.append(self);
+        try collidables.?.append(loom.allocators.generic(), self);
     }
 
     pub fn Start(self: *Self, entity: *loom.Entity) !void {
@@ -360,7 +360,7 @@ pub const RectangleCollider = struct {
         }
 
         if (colliders.items.len == 0) {
-            colliders.deinit();
+            colliders.deinit(loom.allocators.generic());
             collidables = null;
         }
     }

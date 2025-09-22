@@ -515,9 +515,7 @@ pub inline fn coerceTo(comptime TypeTarget: type, value: anytype) ?TypeTarget {
             .int, .comptime_int => @intCast(
                 safeIntCast(TypeTarget, value),
             ),
-            .float, .comptime_float => @intCast(
-                safeIntCast(TypeTarget, @as(i128, @intFromFloat(@max(std.math.minInt(i128), @min(std.math.maxInt(i128), @round(value)))))),
-            ),
+            .float, .comptime_float => @intFromFloat(@round(value)),
             .bool => @as(TypeTarget, @intFromBool(value)),
             .@"enum" => @as(TypeTarget, @intFromEnum(value)),
             .pointer => @intFromPtr(value),
@@ -806,7 +804,7 @@ pub fn randFloat(comptime T: type, min: T, max: T) T {
     return random.float(T) * (max - min) + min;
 }
 
-pub fn cloneToOwnedSlice(comptime T: type, list: std.ArrayList(T)) ![]T {
-    var cloned = try list.clone();
-    return try cloned.toOwnedSlice();
+pub fn cloneToOwnedSlice(comptime T: type, allocator: std.mem.Allocator, list: std.ArrayList(T)) ![]T {
+    var cloned = try list.clone(allocator);
+    return try cloned.toOwnedSlice(allocator);
 }

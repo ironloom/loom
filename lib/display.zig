@@ -17,6 +17,7 @@ pub const Renderer = struct {
 
 const BufferType = std.ArrayList(Renderer);
 var buffer: ?BufferType = null;
+var allocator: std.mem.Allocator = undefined;
 
 fn sort(_: void, lsh: Renderer, rsh: Renderer) bool {
     if (lsh.transform.position.z < rsh.transform.position.z)
@@ -28,24 +29,25 @@ fn sort(_: void, lsh: Renderer, rsh: Renderer) bool {
 }
 
 pub fn init() void {
-    buffer = BufferType.init(loom.allocators.generic());
+    allocator = loom.allocators.generic();
+    buffer = .empty;
 }
 
 pub fn reset() void {
     const buf = &(buffer orelse return);
-    buf.clearAndFree();
+    buf.clearAndFree(allocator);
 }
 
 pub fn deinit() void {
     const buf = &(buffer orelse return);
-    buf.deinit();
+    buf.deinit(allocator);
 }
 
 pub fn add(r: Renderer) !void {
     if (r.transform.scale.equals(loom.vec2()) == 1) return;
     const buf = &(buffer orelse return);
 
-    try buf.append(r);
+    try buf.append(allocator, r);
 }
 
 pub fn render() void {

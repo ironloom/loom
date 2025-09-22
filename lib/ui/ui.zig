@@ -50,11 +50,13 @@ var textures: std.ArrayList(TextureCache) = undefined;
 var fonts: std.ArrayList(FontEntry) = undefined;
 var fonts_cache: std.ArrayList(FontEntry) = undefined;
 var font_index: usize = 1;
+var allocator: std.mem.Allocator = undefined;
 
 pub fn init() !void {
-    fonts = .init(loom.allocators.generic());
-    fonts_cache = .init(loom.allocators.generic());
-    textures = .init(loom.allocators.generic());
+    allocator = loom.allocators.generic();
+    fonts = .empty;
+    fonts_cache = .empty;
+    textures = .empty;
 
     const min_memory_size: usize = loom.coerceTo(usize, clay.minMemorySize()).?;
     memory = try loom.allocators.generic().alloc(u8, min_memory_size);
@@ -74,12 +76,12 @@ pub fn update() !void {
         .h = win_size.y,
     });
 
-    var render_commands = clay.endLayout();
+    var render_commands = clay.cdefs.Clay_EndLayout();
 
     try renderer.clayRaylibRender(&render_commands, loom.allocators.generic());
 
-    var cache_clone = try fonts_cache.clone();
-    defer cache_clone.deinit();
+    var cache_clone = try fonts_cache.clone(allocator);
+    defer cache_clone.deinit(allocator);
 
     for (cache_clone.items, 0..) |cached, index| {
         if (included: {
@@ -94,9 +96,9 @@ pub fn update() !void {
         _ = fonts_cache.swapRemove(index);
     }
 
-    fonts_cache.deinit();
-    fonts_cache = try fonts.clone();
-    fonts.clearAndFree();
+    fonts_cache.deinit(allocator);
+    fonts_cache = try fonts.clone(allocator);
+    fonts.clearAndFree(allocator);
 
     for (textures.items) |*texture| {
         if (texture.refs == 0) loom.assets.texture.release(texture.name, .{ 1, 1 });
@@ -113,9 +115,9 @@ pub fn deinit() void {
         loom.assets.texture.release(texture.name, .{ texture.size.x, texture.size.y });
     }
 
-    fonts_cache.deinit();
-    fonts.deinit();
-    textures.deinit();
+    fonts_cache.deinit(allocator);
+    fonts.deinit(allocator);
+    textures.deinit(allocator);
 
     loom.allocators.generic().free(memory);
 }
@@ -148,7 +150,7 @@ pub fn fontID(rel_path: []const u8) u16 {
 
     const font_entry: FontEntry = .init(rel_path, font_index);
     loadFont(rel_path) catch return 0;
-    fonts.append(font_entry) catch return 0;
+    fonts.append(allocator, font_entry) catch return 0;
 
     return font_entry.id;
 }
@@ -259,7 +261,7 @@ pub fn image(path: []const u8, size: loom.Vector2) !clay.ImageElementConfig {
         .texture = loom.assets.texture.get(path, .{ size.x, size.y }) orelse return error.NoImageFound,
     };
 
-    try textures.append(entry);
+    try textures.append(allocator, entry);
 
     return clay.ImageElementConfig{
         .image_data = entry.texture,

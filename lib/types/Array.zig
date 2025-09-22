@@ -33,8 +33,8 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn init(tuple: anytype, options: ArrayOptions) !Self {
-            var list = std.ArrayList(T).init(options.allocator);
-            defer list.deinit();
+            var list: std.ArrayList(T) = .empty;
+            defer list.deinit(options.allocator);
 
             inline for (tuple) |item| {
                 const item_value = @as(
@@ -68,11 +68,11 @@ pub fn Array(comptime T: type) type {
                 );
 
                 if (item_value) |c| {
-                    try list.append(c);
+                    try list.append(options.allocator, c);
                 }
             }
 
-            const new_slice = try list.toOwnedSlice();
+            const new_slice = try list.toOwnedSlice(options.allocator);
 
             return Self{
                 .alloc = options.allocator,
@@ -104,11 +104,9 @@ pub fn Array(comptime T: type) type {
             };
         }
 
-        pub fn fromArrayList(arr: std.ArrayList(T)) !Self {
-            const allocator = arr.allocator;
-
+        pub fn fromArrayList(allocator: Allocator, arr: std.ArrayList(T)) !Self {
             return Self{
-                .items = try cloneToOwnedSlice(T, arr),
+                .items = try cloneToOwnedSlice(T, allocator, arr),
                 .alloc = allocator,
             };
         }
@@ -151,15 +149,15 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn map(self: Self, comptime R: type, map_fn: fn (T) anyerror!R) !Array(R) {
-            var arrlist = std.ArrayList(R).init(self.alloc);
+            var arrlist = std.ArrayList(R).empty;
             defer arrlist.deinit();
 
             for (self.items) |item| {
-                try arrlist.append(try map_fn(item));
+                try arrlist.append(self.alloc, try map_fn(item));
             }
 
             return Array(R){
-                .items = try cloneToOwnedSlice(R, arrlist),
+                .items = try cloneToOwnedSlice(R, self.alloc, arrlist),
                 .alloc = self.alloc,
             };
         }

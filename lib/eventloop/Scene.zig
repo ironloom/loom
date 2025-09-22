@@ -30,10 +30,10 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
         .uuid = loom.UUIDv7(),
         .alloc = allocator,
         .is_alive = true,
-        .prefabs = .init(allocator),
-        .entities = .init(allocator),
-        .new_entities = .init(allocator),
-        .behaviours = .init(allocator),
+        .prefabs = .empty,
+        .entities = .empty,
+        .new_entities = .empty,
+        .behaviours = .empty,
     };
 }
 
@@ -47,8 +47,8 @@ pub fn create(allocator: Allocator, id: []const u8) !*Self {
 pub fn deinit(self: *Self) void {
     self.unload();
 
-    self.prefabs.deinit();
-    self.behaviours.deinit();
+    self.prefabs.deinit(self.alloc);
+    self.behaviours.deinit(self.alloc);
 }
 
 pub fn destroy(self: *Self) void {
@@ -69,7 +69,7 @@ pub fn load(self: *Self) !void {
 
     for (self.prefabs.items) |prefabs| {
         const entity = try prefabs.makeInstance();
-        try self.entities.append(entity);
+        try self.entities.append(self.alloc, entity);
 
         try entity.addPreparedComponents(false);
 
@@ -96,7 +96,7 @@ pub fn unload(self: *Self) void {
         behaviour.callSafe(.end, self);
     }
 
-    const clone = loom.Array(*loom.Entity).fromArrayList(self.entities) catch return;
+    const clone = loom.Array(*loom.Entity).fromArrayList(self.alloc, self.entities) catch return;
     defer clone.deinit();
 
     for (clone.items) |entity| {
@@ -109,7 +109,7 @@ pub fn unload(self: *Self) void {
         }
     }
 
-    self.entities.clearAndFree();
+    self.entities.clearAndFree(self.alloc);
     self.is_active = false;
 }
 
@@ -124,7 +124,7 @@ pub fn execute(self: *Self) void {
 
     for (self.new_entities.items) |entity| {
         if (entity.remove_next_frame) continue;
-        self.entities.append(entity) catch |err| {
+        self.entities.append(self.alloc, entity) catch |err| {
             std.log.err("failed to add entity, error: {any}", .{err});
             continue;
         };
@@ -135,7 +135,7 @@ pub fn execute(self: *Self) void {
         };
     }
 
-    self.new_entities.clearAndFree();
+    self.new_entities.clearAndFree(self.alloc);
 
     const len = self.entities.items.len;
     for (1..len + 1) |b| {
@@ -164,7 +164,7 @@ pub fn execute(self: *Self) void {
 pub fn addPrefab(self: *Self, prefab: loom.Prefab) !void {
     if (!self.is_alive) return;
 
-    try self.prefabs.append(prefab);
+    try self.prefabs.append(self.alloc, prefab);
 }
 
 pub fn addPrefabs(self: *Self, prefabs: []const loom.Prefab) !void {
@@ -185,7 +185,7 @@ pub fn newEntity(self: *Self, id: []const u8, component_tuple: anytype) !void {
 pub fn addEntity(self: *Self, entity: *loom.Entity) !void {
     if (!self.is_alive) return;
 
-    try self.new_entities.append(entity);
+    try self.new_entities.append(self.alloc, entity);
 }
 
 pub fn getEntity(self: *Self, value: anytype, eqls: *const fn (@TypeOf(value), *Entity) bool) ?*Entity {
@@ -260,12 +260,12 @@ pub fn useGlobalBehaviours(self: *Self, behaviours: anytype) !void {
     for (self.behaviours.items) |behaviour| {
         behaviour.callSafe(.end, self);
     }
-    self.behaviours.clearAndFree();
+    self.behaviours.clearAndFree(self.alloc);
 
     inline for (behaviours) |component| {
         const ptr = try self.alloc.create(GlobalBehaviour);
         ptr.* = try GlobalBehaviour.init(component);
 
-        try self.behaviours.append(ptr);
+        try self.behaviours.append(self.alloc, ptr);
     }
 }

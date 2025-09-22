@@ -291,7 +291,8 @@ pub const restore_state = struct {
             @round(win_pos.y),
         ))));
 
-        const writer = file.writer();
+        var write_buffer: [2048]u8 = [_]u8{0} ** 2048;
+        var writer = file.writer(&write_buffer).interface;
 
         try writer.writeByte(loom.coerceTo(u8, win_pos_x >> 8) orelse 0);
         try writer.writeByte(loom.coerceTo(u8, (win_pos_x << 8) >> 8) orelse 0);
@@ -323,21 +324,22 @@ pub const restore_state = struct {
         var file = try std.fs.openFileAbsolute(path, .{ .mode = .read_only });
         defer file.close();
 
-        var reader = file.reader();
+        var buffer: [2048]u8 = undefined;
+        var reader = file.reader(&buffer).interface;
 
-        const pos_x_str = [_]u8{ try reader.readByte(), try reader.readByte() };
+        const pos_x_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
         const pos_x: i16 = @bitCast(@as(u16, @intCast((loom.tou16(pos_x_str[0]) << 8) + loom.tou16(pos_x_str[1]))));
 
-        const pos_y_str = [_]u8{ try reader.readByte(), try reader.readByte() };
+        const pos_y_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
         const pos_y: i16 = @bitCast(@as(u16, @intCast((loom.tou16(pos_y_str[0]) << 8) + loom.tou16(pos_y_str[1]))));
 
-        const size_x_str = [_]u8{ try reader.readByte(), try reader.readByte() };
+        const size_x_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
         const size_x: i16 = @bitCast(@as(u16, @intCast((loom.tou16(size_x_str[0]) << 8) + loom.tou16(size_x_str[1]))));
 
-        const size_y_str = [_]u8{ try reader.readByte(), try reader.readByte() };
+        const size_y_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
         const size_y: i16 = @bitCast(@as(u16, @intCast((loom.tou16(size_y_str[0]) << 8) + loom.tou16(size_y_str[1]))));
 
-        const config_flag_bits = try reader.readByte();
+        const config_flag_bits = try reader.takeByte();
 
         rl.setWindowPosition(@intCast(pos_x), @intCast(pos_y));
         size.set(loom.Vec2(size_x, size_y));

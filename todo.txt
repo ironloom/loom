@@ -64,6 +64,10 @@ x 2025-06-11 add: audio interface:
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-
+new: Camera system @display
+    NOTE:   the game should be able to handle render contexts. Each camera 
+            should have it's own RenderTexture, which it targets. Cameras 
+            render the same world, but at different positions, to different
+            segments of the screen.
 
 add: debug ui @tooling

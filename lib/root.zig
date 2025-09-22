@@ -15,6 +15,9 @@ pub const Array = arrays.Array;
 pub const array = arrays.array;
 pub const arrayAdvanced = arrays.arrayAdvanced;
 
+pub const lists = @import("./types/List.zig");
+pub const List = lists.List;
+
 test "Array(T) generic type" {
     const expect = std.testing.expect;
 

@@ -73,7 +73,7 @@ pub const RectangleCollider = struct {
     };
 
     const Self = @This();
-    var collidables: ?std.ArrayList(*Self) = null;
+    var collidables: ?loom.List(*Self) = null;
 
     collider_transform: Transform,
     type: ColliderType = .static,
@@ -262,9 +262,9 @@ pub const RectangleCollider = struct {
         self.last_collider_transform = self.collider_transform;
 
         if (collidables == null) {
-            collidables = .empty;
+            collidables = .init(loom.allocators.generic());
         }
-        try collidables.?.append(loom.allocators.generic(), self);
+        try collidables.?.append(self);
     }
 
     pub fn Start(self: *Self, entity: *loom.Entity) !void {
@@ -303,7 +303,7 @@ pub const RectangleCollider = struct {
         } else if (self_last_transform.position.equals(self_transform.position) == 0 or self.last_collider_transform.position.equals(self.collider_transform.position) == 0)
             try self.recalculatePoints();
 
-        for (colliders.items) |other| {
+        for (colliders.items()) |other| {
             if (other.entity.uuid == self.entity.uuid) continue;
             if (other.type == .trigger) continue;
             if (other.type == .passtrough and self.type != .trigger) continue;
@@ -353,14 +353,14 @@ pub const RectangleCollider = struct {
 
     pub fn End(self: *Self) !void {
         const colliders = &(collidables orelse return);
-        for (colliders.items, 0..) |item, index| {
+        for (colliders.items(), 0..) |item, index| {
             if (item != self) continue;
             _ = colliders.swapRemove(index);
             break;
         }
 
-        if (colliders.items.len == 0) {
-            colliders.deinit(loom.allocators.generic());
+        if (colliders.len() == 0) {
+            colliders.deinit();
             collidables = null;
         }
     }

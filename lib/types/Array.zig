@@ -238,8 +238,7 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn toArrayList(self: Self) !std.ArrayList(T) {
-            var list = std.ArrayList(T).init(self.alloc);
-            try list.resize(self.len());
+            const list = try std.ArrayList(T).initCapacity(self.alloc, self.len());
 
             @memcpy(list.items, self.items);
 

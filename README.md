@@ -5,10 +5,10 @@
 
 ---
 
-**loom** wraps [Not-Nik](https://github.com/Not-Nik)'s [raylib-zig](https://github.com/Not-Nik/raylib-zig) and uses [johan0A](https://github.com/johan0A)'s [clay-zig-bindings](https://github.com/johan0A/clay-zig-bindings) for UI.
+**loom** wraps [raylib-zig](https://github.com/raylib-zig/raylib-zig) and uses [johan0A](https://github.com/johan0A)'s [clay-zig-bindings](https://github.com/johan0A/clay-zig-bindings) for UI.
 
 > [!important]
-> This project uses zig version `0.14.0` and the latest version of the bindings.
+> This project uses zig version `0.15.1` and Raylib `5.6-dev`.
 
 The engine aims to provide a declarative interface for game development. We try to provide a _"code only Unity"_, where you only have to configure scenes and entities with only a few lines of code.
 
@@ -42,3 +42,23 @@ Adding loom is easy, just follow these steps:
    ```zig
    const loom = @import("loom");
    ```
+
+## Run Example Projects
+
+We have a few example projects included in this repository. Here is how you can run them:
+
+1. Clone the repository
+   ```sh
+   git clone https://github.com/zewenn/loom.git && cd ./loom
+   ```
+2. Run the selected example
+   ```sh
+   zig build example=<example name>
+   ```
+   Currently available examples:
+   - `gamepad` _(only works with a gamepad connected)_
+   - `spawning-removing`
+   - `display-sorting`
+   - `components`
+   - `global-behaviours`
+   - `audio`

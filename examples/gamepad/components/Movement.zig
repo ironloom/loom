@@ -60,6 +60,7 @@ pub fn Update(self: *Self) !void {
 
     transform.position = transform.position.add(lm.vec2ToVec3(
         movement_vector
+            .normalize()
             .multiply(lm.time.deltaTimeVector2())
             .multiply(.init(SPEED, SPEED)),
     ));

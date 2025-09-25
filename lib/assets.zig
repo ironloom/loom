@@ -12,6 +12,7 @@ const Texture = loom.rl.Texture;
 const Wave = loom.rl.Wave;
 const Sound = loom.rl.Sound;
 const Font = loom.rl.Font;
+const Shader = loom.rl.Shader;
 
 pub const files = struct {
     pub const paths = struct {
@@ -75,7 +76,7 @@ pub const files = struct {
 
 fn AssetCache(
     comptime T: type,
-    comptime parsefn: *const fn (data: []const u8, filetype: []const u8, mod: anytype) anyerror!T,
+    comptime parsefn: *const fn (data: []const u8, filetype: []const u8, path: []const u8, mod: anytype) anyerror!T,
     comptime releasefn: *const fn (data: T) void,
 ) type {
     return struct {
@@ -143,7 +144,7 @@ fn AssetCache(
             const filetype = try files.getFileExt(rel_path);
             defer loom.allocators.generic().free(filetype);
 
-            const parsed: T = try parsefn(data, filetype, modifiers);
+            const parsed: T = try parsefn(data, filetype, rel_path, modifiers);
 
             try hmap.put(HASH, try sharedPtr(parsed));
         }
@@ -211,7 +212,7 @@ fn AssetCache(
 pub const image = AssetCache(
     Image,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, modifiers: anytype) !Image {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: anytype) !Image {
             const mods = loom.array(i32, modifiers);
             defer mods.deinit();
 
@@ -237,7 +238,7 @@ pub const image = AssetCache(
 pub const texture = AssetCache(
     Texture,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, modifiers: anytype) !Texture {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: anytype) !Texture {
             const mods = loom.array(i32, modifiers);
             defer mods.deinit();
 
@@ -266,7 +267,7 @@ pub const texture = AssetCache(
 pub const font = AssetCache(
     Font,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, mod: anytype) !Font {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, mod: anytype) !Font {
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";
             defer loom.allocators.generic().free(str);
 
@@ -297,7 +298,7 @@ pub const font = AssetCache(
 pub const sound = AssetCache(
     Sound,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, _: anytype) !Sound {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, _: anytype) !Sound {
             const str: [:0]const u8 = try loom.allocators.generic().dupeZ(u8, filetype);
             defer loom.allocators.generic().free(str);
 
@@ -309,6 +310,54 @@ pub const sound = AssetCache(
     }.callback,
     struct {
         pub fn callback(data: Sound) void {
+            loom.rl.unloadSound(data);
+        }
+    }.callback,
+);
+
+pub const shader = AssetCache(
+    Shader,
+    struct {
+        pub fn callback(data: []const u8, filetype: []const u8, filename: []const u8, _: anytype) !Shader {
+            var fragment_shader_c_data: ?[]const u8 = null;
+            defer if (fragment_shader_c_data) |fscd| loom.allocators.generic().free(fscd);
+
+            var vertex_shader_c_data: ?[:0]const u8 = null;
+            defer if (vertex_shader_c_data) |vscd| loom.allocators.generic().free(vscd);
+
+            const other_shader_filename = try std.mem.concat(loom.allocators.generic(), u8, &.{
+                filename[0 .. filename.len - 2],
+                if (std.mem.eql(filetype, "fs")) "vs" else "fs",
+            });
+            defer loom.allocators.generic().free(other_shader_filename);
+
+            if (std.mem.eql(filetype, "fs")) {
+                const vertex_shader_data: ?[]const u8 = files.getData(other_shader_filename) catch null;
+                defer if (vertex_shader_data) |vsd| loom.allocators.generic().free(vsd);
+
+                vertex_shader_c_data = if (vertex_shader_data) |vs|
+                    try loom.allocators.generic().dupeZ(u8, vs)
+                else
+                    null;
+
+                fragment_shader_c_data = try loom.allocators.generic().dupeZ(u8, data);
+            } else {
+                const fragment_shader_data: ?[]const u8 = files.getData(other_shader_filename) catch null;
+                defer if (fragment_shader_data) |fsd| loom.allocators.generic().free(fsd);
+
+                fragment_shader_c_data = if (fragment_shader_data) |vs|
+                    try loom.allocators.generic().dupeZ(u8, vs)
+                else
+                    null;
+
+                vertex_shader_c_data = try loom.allocators.generic().dupeZ(u8, data);
+            }
+
+            return try loom.rl.loadShaderFromMemory(vertex_shader_c_data, fragment_shader_c_data);
+        }
+    }.callback,
+    struct {
+        pub fn callback(data: Shader) void {
             loom.rl.unloadSound(data);
         }
     }.callback,

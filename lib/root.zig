@@ -110,19 +110,55 @@ pub const Animation = @import("builtin-components/animator/Animation.zig");
 pub const Keyframe = @import("builtin-components/animator/Keyframe.zig");
 pub const interpolation = @import("builtin-components/animator/interpolation.zig");
 
-pub var camera: rl.Camera2D = .{
-    .offset = Vec2(0, 0),
-    .target = Vec2(0, 0),
-    .zoom = 1,
-    .rotation = 0,
+pub const Camera = @import("Camera.zig");
+
+pub var cameras: List(*Camera) = .{
+    .allocator = std.heap.smp_allocator,
+    .arrlist = .empty,
 };
 
-pub fn screenToWorldPos(pos: Vector2) Vector2 {
-    return rl.getScreenToWorld2D(pos, camera);
+pub fn newCamera(id: []const u8, options: Camera.Options) !*Camera {
+    const ptr = try allocators.generic().create(Camera);
+    ptr.* = try .init(id, options);
+
+    try cameras.append(ptr);
+
+    return ptr;
 }
 
-pub fn worldToScreenPos(pos: Vector2) Vector2 {
-    return rl.getWorldToScreen2D(pos, camera);
+pub fn getCamera(id: []const u8) ?*Camera {
+    for (cameras.items()) |camera| {
+        if (!std.mem.eql(u8, camera.id, id)) continue;
+
+        return camera;
+    }
+
+    return null;
+}
+
+pub fn removeCamera(value: anytype, byCriteria: fn (Camera, @TypeOf(value)) bool) void {
+    for (cameras.items(), 0..) |camera, index| {
+        if (!byCriteria(camera, value)) continue;
+
+        cameras.orderedRemove(index);
+        camera.deinit();
+    }
+}
+
+pub fn removeCameraById(id: []const u8) void {
+    removeCamera(id, struct {
+        pub fn callback(camera: Camera, identifier: []const u8) !void {
+            return std.mem.eql(u8, camera.id, identifier);
+        }
+    }.callback);
+}
+
+pub fn removeCameraByUuid(uuid_: u128) void {
+    removeCamera(uuid_, struct {
+        pub fn callback(camera: Camera, uuid__: []const u8) !void {
+            return camera.uuid == uuid__;
+        }
+    }.callback);
 }
 
 pub const ecs = struct {
@@ -179,10 +215,13 @@ pub const ProjectConfig = struct {
 
     window: WindowConfig = .{},
     asset_paths: AssetPathConfig = .{},
+
+    use_main_camera: bool = true,
+    raylib_log_level: rl.TraceLogLevel = .warning,
 };
 
 pub fn project(config: ProjectConfig) *const fn (void) void {
-    rl.setTraceLogLevel(.warning);
+    rl.setTraceLogLevel(config.raylib_log_level);
 
     time.init();
 
@@ -222,20 +261,32 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
+    if (config.use_main_camera) {
+        _ = newCamera("main", .{
+            .display = .fullscreen,
+            .draw_mode = .world,
+        }) catch {
+            @panic("Failed to create main camera");
+        };
+    }
+
     return struct {
         pub fn callback(_: void) void {
             eventloop.setActive("default") catch {
                 std.log.info("no default scene", .{});
             };
 
+            const main_camera = getCamera("main");
+
             while (!window.shouldClose() and running) {
                 if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
                     window.toggleDebugMode();
 
-                camera.offset = Vec2(
-                    tof32(rl.getScreenWidth()) / 2,
-                    tof32(rl.getScreenHeight()) / 2,
-                );
+                if (main_camera) |camera|
+                    camera.offset = Vec2(
+                        tof32(rl.getScreenWidth()) / 2,
+                        tof32(rl.getScreenHeight()) / 2,
+                    );
 
                 time.update();
                 display.reset();
@@ -263,13 +314,18 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
 
                 window.clearBackground();
                 {
-                    camera.begin();
-                    defer camera.end();
+                    var failed = false;
+                    if (main_camera) |camera| camera.begin() catch {
+                        std.debug.print("camera rendering failed", .{});
+                        failed = true;
+                    };
+                    defer if (!failed) if (main_camera) |camera| camera.end();
 
                     display.render();
                 }
 
-                ui.update() catch {
+                var render_commands = clay.cdefs.Clay_EndLayout();
+                ui.update(&render_commands) catch {
                     std.log.err("UI update failed", .{});
                 };
 

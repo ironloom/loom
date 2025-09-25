@@ -69,16 +69,14 @@ pub fn init() !void {
     renderer.raylib_fonts[0] = try rl.getFontDefault();
 }
 
-pub fn update() !void {
+pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     const win_size = loom.window.size.get();
     clay.setLayoutDimensions(.{
         .w = win_size.x,
         .h = win_size.y,
     });
 
-    var render_commands = clay.cdefs.Clay_EndLayout();
-
-    try renderer.clayRaylibRender(&render_commands, loom.allocators.generic());
+    try renderer.clayRaylibRender(commands, loom.allocators.generic());
 
     var cache_clone = try fonts_cache.clone(allocator);
     defer cache_clone.deinit(allocator);

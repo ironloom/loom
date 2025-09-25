@@ -62,6 +62,10 @@ pub fn execute() void {
     ascene.execute();
 }
 
+pub fn isNextSceneQueued() bool {
+    return next_scene != null;
+}
+
 pub fn loadNext() !void {
     const nscene = next_scene orelse return;
     if (active_scene) |ascene| ascene.unload();

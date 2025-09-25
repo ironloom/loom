@@ -11,6 +11,7 @@ pub fn Player(comptime position: lm.Vector2) !lm.Prefab {
         lm.Renderer.sprite("./resources/loom_logo_43x16.png"),
         lm.CameraTarget.init("main", .{
             .max_distance = 128,
+            .follow_speed = 128,
         }),
         lm.RectangleCollider.initConfig(.{
             .type = .dynamic,

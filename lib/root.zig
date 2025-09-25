@@ -248,7 +248,8 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
                 window.clearBackground();
                 rendering: {
                     const active_scene = activeScene() orelse {
-                        std.log.err("no scene is loaded", .{});
+                        if (!eventloop.isNextSceneQueued())
+                            std.log.err("no scene is loaded", .{});
                         break :rendering;
                     };
 
@@ -323,11 +324,12 @@ pub fn globalBehaviours(behaviours: anytype) void {
     };
 }
 
-pub fn cameras(camera_configs: []const struct { id: []const u8, options: Camera.Options }) void {
+pub const CameraConfig = struct { id: []const u8, options: Camera.Options };
+pub fn cameras(camera_configs: []const CameraConfig) void {
     const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
 
     for (camera_configs) |config| {
-        _ = selected_scene.addDefaultCamera(config.id, config.options) catch {
+        selected_scene.addDefaultCamera(config) catch {
             std.log.err("failed to add camera: {s}", .{config.id});
         };
     }

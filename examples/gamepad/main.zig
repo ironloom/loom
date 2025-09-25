@@ -13,7 +13,7 @@ pub fn main() !void {
     })({
         loom.scene("default")({
             loom.prefabs(&.{
-                try prefabs.Dummy(.init(0, 0)),
+                try prefabs.Dummy(.init(640, 360)),
             });
         });
     });

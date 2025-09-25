@@ -19,7 +19,7 @@ new_entities: std.ArrayList(*Entity),
 
 behaviours: std.ArrayList(*GlobalBehaviour),
 cameras: loom.List(*loom.Camera),
-default_cameras: loom.List(*loom.Camera),
+default_cameras: loom.List(loom.CameraConfig),
 
 is_active: bool = false,
 is_alive: bool = false,
@@ -54,7 +54,14 @@ pub fn deinit(self: *Self) void {
 
     self.prefabs.deinit(self.alloc);
     self.behaviours.deinit(self.alloc);
+
+    for (self.cameras.items()) |camera| {
+        camera.deinit();
+        loom.allocators.generic().destroy(camera);
+    }
+
     self.cameras.deinit();
+    self.default_cameras.deinit();
 }
 
 pub fn destroy(self: *Self) void {
@@ -65,7 +72,16 @@ pub fn destroy(self: *Self) void {
 pub fn load(self: *Self) !void {
     if (!self.is_alive) return;
 
-    self.cameras = try self.default_cameras.clone();
+    for (self.default_cameras.items()) |camera_config| {
+        _ = try self.addCamera(camera_config.id, camera_config.options);
+    }
+
+    if (self.cameras.len() == 0) {
+        _ = try self.addCamera("main", .{
+            .display = .fullscreen,
+            .draw_mode = .world,
+        });
+    }
 
     for (self.behaviours.items) |behaviour| {
         behaviour.callSafe(.awake, self);
@@ -285,13 +301,8 @@ pub fn useGlobalBehaviours(self: *Self, behaviours: anytype) !void {
     }
 }
 
-pub fn addDefaultCamera(self: *Self, id: []const u8, options: Camera.Options) !*Camera {
-    const ptr = try loom.allocators.generic().create(Camera);
-    ptr.* = try .init(id, options);
-
-    try self.default_cameras.append(ptr);
-
-    return ptr;
+pub fn addDefaultCamera(self: *Self, config: loom.CameraConfig) !void {
+    try self.default_cameras.append(config);
 }
 
 pub fn addCamera(self: *Self, id: []const u8, options: Camera.Options) !*Camera {

@@ -14,8 +14,8 @@ pub fn main() !void {
         loom.scene("default")({
             loom.prefabs(&.{
                 try prefabs.Spawner(.init(
-                    0,
-                    0,
+                    640,
+                    360,
                     0,
                 )),
             });

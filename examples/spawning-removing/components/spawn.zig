@@ -16,8 +16,8 @@ pub fn Update(self: *Self) !void {
         for (0..self.amount) |_| {
             try loom.summon(&.{.{
                 .entity = try self.entity(loom.Vec2(
-                    loom.random.intRangeAtMost(isize, -640, 640),
-                    loom.random.intRangeAtMost(isize, -320, 320),
+                    loom.random.intRangeAtMost(isize, 0, 1280),
+                    loom.random.intRangeAtMost(isize, 0, 720),
                 )),
             }});
         }

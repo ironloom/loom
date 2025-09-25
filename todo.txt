@@ -68,14 +68,22 @@ x 2025-09-23 add: loom.List(T)
     GOAL:   the goal of this update is to get complete feature parity with 
             raylib's mouse and keyboard functions. Also expand on controller 
             support, since currently there isn't any.
-
 x 2025-09-25 update: input.mouse & input.keyboard @input
     NOTE:   the input.mouse struct will contain all mouse related inputs, 
             while the input.keyboard struct will have all keyboard 
             functionality
-
 x 2025-09-25 add: input.gamepad @input
     NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
+
++v0.7.0 :: The Rendering Update relase:minor
+
+x 2025-09-25 new: Camera system @display
+    NOTE:   the game should be able to handle render contexts. Each camera 
+            should have it's own RenderTexture, which it targets. Cameras 
+            render the same world, but at different positions, to different
+            segments of the screen
+x 2025-09-25 add: shader support for vertex and fragment shaders
+x 2025-09-25 add: new camera management config
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
@@ -83,12 +91,5 @@ x 2025-09-25 add: input.gamepad @input
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-+v0.7.0 :: The Rendering Update relase:minor
-
-new: Camera system @display
-    NOTE:   the game should be able to handle render contexts. Each camera 
-            should have it's own RenderTexture, which it targets. Cameras 
-            render the same world, but at different positions, to different
-            segments of the screen.
 
 add: debug ui @tooling

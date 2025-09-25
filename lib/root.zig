@@ -211,91 +211,95 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
-    return struct {
-        pub fn callback(_: void) void {
-            eventloop.setActive("default") catch {
-                std.log.info("no default scene", .{});
+    return projectLoop;
+}
+
+fn projectLoop(_: void) void {
+    eventloop.setActive("default") catch {
+        std.log.info("no default scene", .{});
+    };
+
+    while (!window.shouldClose() and running) {
+        if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
+            window.toggleDebugMode();
+
+        time.update();
+        display.reset();
+
+        const mouse_position = rl.getMousePosition();
+        clay.setPointerState(.{
+            .x = mouse_position.x,
+            .y = mouse_position.y,
+        }, rl.isMouseButtonDown(.left));
+
+        const scroll = rl.getMouseWheelMoveV();
+        clay.updateScrollContainers(
+            true,
+            .{ .x = scroll.x, .y = scroll.y },
+            time.deltaTime(),
+        );
+
+        clay.beginLayout();
+
+        eventloop.execute();
+        defer eventloop.loadNext() catch {
+            std.log.debug("failed to load next scene!", .{});
+        };
+
+        audio.update();
+
+        rl.beginDrawing();
+        defer rl.endDrawing();
+
+        window.clearBackground();
+        rendering: {
+            const active_scene = activeScene() orelse {
+                if (!eventloop.isNextSceneQueued())
+                    std.log.err("no scene is loaded", .{});
+                break :rendering;
             };
 
-            while (!window.shouldClose() and running) {
-                if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
-                    window.toggleDebugMode();
-
-                time.update();
-                display.reset();
-
-                const mouse_position = rl.getMousePosition();
-                clay.setPointerState(.{
-                    .x = mouse_position.x,
-                    .y = mouse_position.y,
-                }, rl.isMouseButtonDown(.left));
-
-                const scroll = rl.getMouseWheelMoveV();
-                clay.updateScrollContainers(true, .{ .x = scroll.x, .y = scroll.y }, time.deltaTime());
-
-                clay.beginLayout();
-
-                eventloop.execute();
-                defer eventloop.loadNext() catch {
-                    std.log.debug("failed to load next scene!", .{});
+            for (active_scene.cameras.items()) |camera| {
+                camera.begin() catch {
+                    std.log.err("camera failed to begin context", .{});
                 };
+                defer camera.end();
 
-                audio.update();
-
-                rl.beginDrawing();
-                defer rl.endDrawing();
-
-                window.clearBackground();
-                rendering: {
-                    const active_scene = activeScene() orelse {
-                        if (!eventloop.isNextSceneQueued())
-                            std.log.err("no scene is loaded", .{});
-                        break :rendering;
-                    };
-
-                    for (active_scene.cameras.items()) |camera| {
-                        camera.begin() catch {
-                            std.log.err("camera failed to begin context", .{});
-                        };
-                        defer camera.end();
-
-                        switch (camera.draw_mode) {
-                            .none => continue,
-                            .world => display.render(),
-                            .custom => if (camera.draw_fn) |func| func() catch {
-                                std.log.err("error while running custom camera draw function", .{});
-                            },
-                        }
-                    }
+                switch (camera.draw_mode) {
+                    .none => continue,
+                    .world => display.render(),
+                    .custom => if (camera.draw_fn) |func| func() catch {
+                        std.log.err("error while running custom camera draw function", .{});
+                    },
                 }
-
-                var render_commands = clay.cdefs.Clay_EndLayout();
-                ui.update(&render_commands) catch {
-                    std.log.err("UI update failed", .{});
-                };
-
-                if (window.use_debug_mode)
-                    rl.drawFPS(10, 10);
-            }
-
-            eventloop.deinit();
-            ui.deinit();
-            display.deinit();
-
-            window.restore_state.save() catch {
-                std.log.err("failed to save window state", .{});
-            };
-
-            audio.deinit();
-
-            assets.deinit();
-            window.deinit();
-
-            if (allocators.AI_arena.interface) |arena| {
-                arena.deinit();
             }
         }
-    }.callback;
+
+        var render_commands = clay.cdefs.Clay_EndLayout();
+        ui.update(&render_commands) catch {
+            std.log.err("UI update failed", .{});
+        };
+
+        if (window.use_debug_mode)
+            rl.drawFPS(10, 10);
+    }
+
+    eventloop.deinit();
+    ui.deinit();
+    display.deinit();
+
+    window.restore_state.save() catch {
+        std.log.err("failed to save window state", .{});
+    };
+
+    audio.deinit();
+
+    assets.deinit();
+    window.deinit();
+
+    if (allocators.AI_arena.interface) |arena| {
+        arena.deinit();
+    }
 }
 
 pub fn scene(id: []const u8) *const fn (void) void {

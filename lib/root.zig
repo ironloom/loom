@@ -26,12 +26,12 @@ test "Array(T) generic type" {
     });
     defer test_arr.deinit();
 
-    var array_list = std.ArrayList(u8).init(std.testing.allocator);
+    var array_list = List(u8).init(std.testing.allocator);
     defer array_list.deinit();
 
     try array_list.append(1);
 
-    var from_array_list = try Array(u8).fromArrayList(array_list);
+    var from_array_list = try array_list.toArray();
     defer from_array_list.deinit();
 
     try expect(from_array_list.len() == 1);
@@ -140,6 +140,9 @@ pub const time = @import("time.zig");
 pub const input = @import("input.zig");
 pub const ui = @import("ui/ui.zig");
 
+pub const keyboard = input.keyboard;
+pub const mouse = input.mouse;
+
 pub const useAssetPaths = assets.files.paths.use;
 var running = true;
 
@@ -165,6 +168,7 @@ pub const ProjectConfig = struct {
         vsync: bool = false,
 
         clear_color: rl.Color = .white,
+        exit_key: input.KeyboardKey = .escape,
     };
 
     pub const AssetPathConfig = struct {
@@ -193,9 +197,10 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     window.fullscreen.set(config.window.fullscreen);
     window.resizing.set(config.window.resizable);
 
-    window.fpsTarget.set(config.window.fps_target);
     window.vsync.set(config.window.vsync);
+    window.fpsTarget.set(config.window.fps_target);
     window.clear_color = config.window.clear_color;
+    window.setExitKey(config.window.exit_key);
 
     assets.files.paths.use(.{
         .debug = config.asset_paths.debug,
@@ -223,7 +228,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
             };
 
             while (!window.shouldClose() and running) {
-                if (input.getKeyDown(.enter) and input.getKey(.left_alt))
+                if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
                     window.toggleDebugMode();
 
                 camera.offset = Vec2(
@@ -509,19 +514,25 @@ fn safeIntCast(comptime T: type, value2: anytype) T {
 ///     - `int`, the address will become the int's value
 ///     - other `pointer` types (e.g. `*anyopaque` -> `*i32`)
 pub inline fn coerceTo(comptime TypeTarget: type, value: anytype) ?TypeTarget {
-    if (@TypeOf(value) == TypeTarget) return value;
+    const valueType = @TypeOf(value);
+    if (valueType == TypeTarget) return value;
 
-    const value_info = @typeInfo(@TypeOf(value));
+    const value_info = @typeInfo(valueType);
 
     return switch (@typeInfo(TypeTarget)) {
         .int, .comptime_int => switch (value_info) {
             .int, .comptime_int => @intCast(
                 safeIntCast(TypeTarget, value),
             ),
-            .float, .comptime_float => @intFromFloat(@round(value)),
+            .float, .comptime_float => @intFromFloat(
+                @max(
+                    @as(valueType, @floatFromInt(std.math.minInt(TypeTarget))),
+                    @min(@as(valueType, @floatFromInt(std.math.maxInt(TypeTarget))), @round(value)),
+                ),
+            ),
             .bool => @as(TypeTarget, @intFromBool(value)),
             .@"enum" => @as(TypeTarget, @intFromEnum(value)),
-            .pointer => @intFromPtr(value),
+            .pointer => safeIntCast(TypeTarget, @as(usize, @intFromPtr(value))),
             else => null,
         },
         .float, .comptime_float => switch (value_info) {

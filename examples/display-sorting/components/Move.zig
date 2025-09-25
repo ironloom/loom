@@ -12,7 +12,7 @@ pub fn Start(self: *Self, entity: *loom.Entity) !void {
 pub fn Update(self: *Self) !void {
     const transform: *loom.Transform = try loom.ensureComponent(self.transform);
 
-    if (loom.input.getKeyDown(.f)) {
+    if (loom.keyboard.getKeyDown(.f)) {
         try loom.loadScene("default");
     }
 

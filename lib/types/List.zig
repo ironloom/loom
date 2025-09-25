@@ -104,8 +104,8 @@ pub fn List(comptime T: type) type {
             return try cloned.toOwnedSlice();
         }
 
-        pub fn toArray(self: *Self) Array(T) {
-            return .fromArrayList(self.allocator, self.arrlist);
+        pub fn toArray(self: *Self) !Array(T) {
+            return try .fromArrayList(self.allocator, self.arrlist);
         }
     };
 }

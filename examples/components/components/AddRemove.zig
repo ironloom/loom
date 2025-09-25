@@ -4,7 +4,7 @@ const loom = @import("loom");
 const Self = @This();
 
 pub fn Update(entity: *loom.Entity) !void {
-    if (loom.input.getKeyDown(.f)) {
+    if (loom.keyboard.getKeyDown(.f)) {
         try loom.loadScene("default");
     }
 
@@ -30,11 +30,11 @@ pub fn Update(entity: *loom.Entity) !void {
         });
     });
 
-    if (loom.input.getKeyDown(.w)) {
+    if (loom.keyboard.getKeyDown(.w)) {
         try entity.addComponent(loom.Renderer.sprite("./resources/loom_logo_43x16.png"));
     }
 
-    if (loom.input.getKeyDown(.s)) {
+    if (loom.keyboard.getKeyDown(.s)) {
         entity.removeComponent(loom.Renderer);
     }
 }

@@ -150,7 +150,7 @@ pub fn Array(comptime T: type) type {
 
         pub fn map(self: Self, comptime R: type, map_fn: fn (T) anyerror!R) !Array(R) {
             var arrlist = std.ArrayList(R).empty;
-            defer arrlist.deinit();
+            defer arrlist.deinit(self.alloc);
 
             for (self.items) |item| {
                 try arrlist.append(self.alloc, try map_fn(item));

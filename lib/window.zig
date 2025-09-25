@@ -11,6 +11,8 @@ var is_alive = false;
 pub var clear_color: rl.Color = rl.Color.black;
 pub var use_debug_mode = false;
 
+pub const setExitKey = rl.setExitKey;
+
 pub fn init() void {
     defer is_alive = true;
     const start_size = size.get();

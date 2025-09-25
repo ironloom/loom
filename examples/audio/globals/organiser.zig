@@ -15,7 +15,7 @@ pub fn Start(self: *Self) !void {
 pub fn Update(self: *Self) !void {
     _ = self.arena.reset(.free_all);
 
-    if (loom.input.getKeyDown(.f)) {
+    if (loom.keyboard.getKeyDown(.f)) {
         try loom.audio.playAdvanced("noise.wav", .{
             .pitch = loom.randFloat(f32, 0.5, 1),
             .pan = loom.randFloat(f32, 0.5, 1),

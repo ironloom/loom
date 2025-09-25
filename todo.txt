@@ -69,16 +69,17 @@ x 2025-09-23 add: loom.List(T)
             raylib's mouse and keyboard functions. Also expand on controller 
             support, since currently there isn't any.
 
-+--------------------------------[IN_PROGRESS]--------------------------------+
-
-add: input.mouse & input.keyboard
+x 2025-09-25 update: input.mouse & input.keyboard @input
     NOTE:   the input.mouse struct will contain all mouse related inputs, 
             while the input.keyboard struct will have all keyboard 
             functionality
 
++--------------------------------[IN_PROGRESS]--------------------------------+
+
+
 +-----------------------------------[TO_DO]-----------------------------------+
 
-add: input.controller
+add: input.controller @input
     NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
 
 new: Camera system @display

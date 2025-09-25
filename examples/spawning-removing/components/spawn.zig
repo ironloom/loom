@@ -12,7 +12,7 @@ pub fn Start(self: *Self, entity: *loom.Entity) !void {
 }
 
 pub fn Update(self: *Self) !void {
-    if (loom.input.getKeyDown(.f)) {
+    if (loom.keyboard.getKeyDown(.f)) {
         for (0..self.amount) |_| {
             try loom.summon(&.{.{
                 .entity = try self.entity(loom.Vec2(

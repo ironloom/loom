@@ -7,7 +7,7 @@ entity: *const fn (position: loom.Vector2) anyerror!*loom.Entity,
 amount: usize = 100,
 
 pub fn Update(self: *Self, scene: *loom.Scene) !void {
-    if (loom.input.getKeyDown(.f)) {
+    if (loom.keyboard.getKeyDown(.f)) {
         for (0..self.amount) |_| {
             try scene.addEntity(try self.entity(loom.Vec2(
                 loom.random.intRangeAtMost(isize, -640, 640),

@@ -12,6 +12,7 @@ TAG                     | MEANING
 @release                | publish a major/minor version
 @repo                   | stuff relating to the repository
 @test                   | unit test changes
+@input                  | user input / input device information - input.zig
 
 +----------------------------------[FINISHED]---------------------------------+
 
@@ -59,10 +60,26 @@ x 2025-06-11 add: audio interface:
             other params. This way the user does not need to keep track of the 
             allocated memory and loaded assets.
 
++v0.5.0 :: Update to zig v0.15.1 + deps release:minor
+x 2025-09-23 update: zig version 
+x 2025-09-23 add: loom.List(T)
+
++v0.6.0 :: Input Update release:minor
+    GOAL:   the goal of this update is to get complete feature parity with 
+            raylib's mouse and keyboard functions. Also expand on controller 
+            support, since currently there isn't any.
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
+add: input.mouse & input.keyboard
+    NOTE:   the input.mouse struct will contain all mouse related inputs, 
+            while the input.keyboard struct will have all keyboard 
+            functionality
 
 +-----------------------------------[TO_DO]-----------------------------------+
+
+add: input.controller
+    NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
 
 new: Camera system @display
     NOTE:   the game should be able to handle render contexts. Each camera 

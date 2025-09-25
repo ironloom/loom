@@ -29,7 +29,7 @@ const DrawFunction = *const fn () anyerror!void;
 pub const Options = struct {
     display: DisplayOptions,
     draw_mode: Drawmode,
-    shader: ?rl.Shader = null,
+    shader: ?[]const u8 = null,
     draw_fn: ?DrawFunction = null,
     clear_color: rl.Color = .white,
 
@@ -45,7 +45,7 @@ const Self = @This();
 id: []const u8,
 uuid: u128 = 0,
 partial: ?lm.Rectangle = null,
-shader: ?rl.Shader = null,
+shader: ?*rl.Shader = null,
 
 draw_mode: Drawmode = .world,
 draw_fn: ?DrawFunction = null,
@@ -72,11 +72,14 @@ pub fn init(id: []const u8, options: Options) !Self {
         .id = id,
         .uuid = lm.UUIDv7(),
         .partial = partial,
-        .shader = options.shader,
+        .shader = if (options.shader) |path|
+            lm.assets.shader.get(path, .{})
+        else
+            null,
         .draw_mode = options.draw_mode,
         .draw_fn = options.draw_fn,
         .render_texture = if (partial) |p|
-            try .init(lm.toi32(p.x), lm.toi32(p.y))
+            try .init(lm.toi32(p.width), lm.toi32(p.height))
         else
             try .init(lm.toi32(winsize.x), lm.toi32(winsize.y)),
 
@@ -98,6 +101,7 @@ pub fn init(id: []const u8, options: Options) !Self {
 
 pub fn deinit(self: *Self) void {
     self.render_texture.unload();
+    if (self.shader) |self_shader| lm.assets.shader.releasePtr(self_shader);
 }
 
 pub fn begin(self: *Self) !void {
@@ -162,4 +166,14 @@ pub fn worldToScreen(self: *Self, pos: lm.Vector2) lm.Vector2 {
         pos,
         self.camera,
     ).add(.init(offset.x, offset.y));
+}
+
+pub fn useShader(self: *Self, shader_path: ?[]const u8) void {
+    if (self.shader) |current_shader|
+        lm.assets.shader.releasePtr(current_shader);
+
+    self.shader = if (shader_path) |sp|
+        try lm.assets.shader.get(sp, .{})
+    else
+        null;
 }

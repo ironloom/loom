@@ -314,14 +314,20 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
 
                 window.clearBackground();
                 {
-                    var failed = false;
-                    if (main_camera) |camera| camera.begin() catch {
-                        std.debug.print("camera rendering failed", .{});
-                        failed = true;
-                    };
-                    defer if (!failed) if (main_camera) |camera| camera.end();
+                    for (cameras.items()) |camera| {
+                        camera.begin() catch {
+                            std.log.err("camera failed to begin context", .{});
+                        };
+                        defer camera.end();
 
-                    display.render();
+                        switch (camera.draw_mode) {
+                            .none => continue,
+                            .world => display.render(),
+                            .custom => if (camera.draw_fn) |func| func() catch {
+                                std.log.err("error whiel running custom camera draw function", .{});
+                            },
+                        }
+                    }
                 }
 
                 var render_commands = clay.cdefs.Clay_EndLayout();

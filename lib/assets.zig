@@ -319,7 +319,7 @@ pub const shader = AssetCache(
     Shader,
     struct {
         pub fn callback(data: []const u8, filetype: []const u8, filename: []const u8, _: anytype) !Shader {
-            var fragment_shader_c_data: ?[]const u8 = null;
+            var fragment_shader_c_data: ?[:0]const u8 = null;
             defer if (fragment_shader_c_data) |fscd| loom.allocators.generic().free(fscd);
 
             var vertex_shader_c_data: ?[:0]const u8 = null;
@@ -327,11 +327,11 @@ pub const shader = AssetCache(
 
             const other_shader_filename = try std.mem.concat(loom.allocators.generic(), u8, &.{
                 filename[0 .. filename.len - 2],
-                if (std.mem.eql(filetype, "fs")) "vs" else "fs",
+                if (std.mem.eql(u8, filetype, ".fs")) "vs" else "fs",
             });
             defer loom.allocators.generic().free(other_shader_filename);
 
-            if (std.mem.eql(filetype, "fs")) {
+            if (std.mem.eql(u8, filetype, ".fs")) {
                 const vertex_shader_data: ?[]const u8 = files.getData(other_shader_filename) catch null;
                 defer if (vertex_shader_data) |vsd| loom.allocators.generic().free(vsd);
 
@@ -358,7 +358,7 @@ pub const shader = AssetCache(
     }.callback,
     struct {
         pub fn callback(data: Shader) void {
-            loom.rl.unloadSound(data);
+            loom.rl.unloadShader(data);
         }
     }.callback,
 );
@@ -368,4 +368,5 @@ pub fn deinit() void {
     image.deinit();
     font.deinit();
     sound.deinit();
+    shader.deinit();
 }

@@ -111,6 +111,10 @@ pub fn Array(comptime T: type) type {
             };
         }
 
+        pub fn fromList(list: loom.List(T)) !Self {
+            return try Self.fromArrayList(list.allocator, list.arrlist);
+        }
+
         pub fn clone(self: Self) !Self {
             const new = try self.alloc.alloc(T, self.items.len);
             std.mem.copyForwards(T, new, self.items);

@@ -74,13 +74,16 @@ x 2025-09-25 update: input.mouse & input.keyboard @input
             while the input.keyboard struct will have all keyboard 
             functionality
 
+x 2025-09-25 add: input.gamepad @input
+    NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
+
 
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-add: input.controller @input
-    NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
++v0.7.0 :: The Rendering Update relase:minor
 
 new: Camera system @display
     NOTE:   the game should be able to handle render contexts. Each camera 

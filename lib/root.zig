@@ -26,12 +26,12 @@ test "Array(T) generic type" {
     });
     defer test_arr.deinit();
 
-    var array_list = List(u8).init(std.testing.allocator);
-    defer array_list.deinit();
+    var list = List(u8).init(std.testing.allocator);
+    defer list.deinit();
 
-    try array_list.append(1);
+    try list.append(1);
 
-    var from_array_list = try array_list.toArray();
+    var from_array_list = try Array(u8).fromList(list);
     defer from_array_list.deinit();
 
     try expect(from_array_list.len() == 1);
@@ -142,6 +142,7 @@ pub const ui = @import("ui/ui.zig");
 
 pub const keyboard = input.keyboard;
 pub const mouse = input.mouse;
+pub const gamepad = input.gamepad;
 
 pub const useAssetPaths = assets.files.paths.use;
 var running = true;

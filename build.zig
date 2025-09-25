@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) !void {
         "components",
         "global-behaviours",
         "audio",
+        "gamepad",
     };
 
     const run_all_step = b.step("example=all", "");

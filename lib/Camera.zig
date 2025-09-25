@@ -115,12 +115,18 @@ pub fn begin(self: *Self) !void {
         if (lm.tof32(self.render_texture.texture.height) != winsize.y or
             lm.tof32(self.render_texture.texture.width) != winsize.x)
         {
+            self.render_texture.texture.unload();
             self.render_texture.unload();
             self.render_texture = try .init(lm.toi32(winsize.x), lm.toi32(winsize.y));
         };
     if (self.partial) |partial| {
-        self.render_texture.unload();
-        self.render_texture = try .init(lm.toi32(partial.width), lm.toi32(partial.height));
+        if (partial.height != lm.tof32(self.render_texture.texture.height) or
+            partial.width != lm.tof32(self.render_texture.texture.width))
+        {
+            self.render_texture.texture.unload();
+            self.render_texture.unload();
+            self.render_texture = try .init(lm.toi32(partial.width), lm.toi32(partial.height));
+        }
     }
 
     self.render_texture.begin();

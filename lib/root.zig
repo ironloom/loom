@@ -104,62 +104,13 @@ pub const Dimensions = clay.Dimensions;
 pub const Transform = @import("builtin-components/Transform.zig");
 pub const Renderer = @import("builtin-components/Renderer.zig");
 pub const RectangleCollider = @import("builtin-components/collision.zig").RectangleCollider;
-pub const CameraTarget = @import("builtin-components/camera.zig").CameraTarget;
+pub const CameraTarget = @import("builtin-components/CameraTarget.zig");
 pub const Animator = @import("builtin-components/animator/Animator.zig");
 pub const Animation = @import("builtin-components/animator/Animation.zig");
 pub const Keyframe = @import("builtin-components/animator/Keyframe.zig");
 pub const interpolation = @import("builtin-components/animator/interpolation.zig");
 
 pub const Camera = @import("Camera.zig");
-
-pub var cameras: List(*Camera) = .{
-    .allocator = std.heap.smp_allocator,
-    .arrlist = .empty,
-};
-
-pub fn newCamera(id: []const u8, options: Camera.Options) !*Camera {
-    const ptr = try allocators.generic().create(Camera);
-    ptr.* = try .init(id, options);
-
-    try cameras.append(ptr);
-
-    return ptr;
-}
-
-pub fn getCamera(id: []const u8) ?*Camera {
-    for (cameras.items()) |camera| {
-        if (!std.mem.eql(u8, camera.id, id)) continue;
-
-        return camera;
-    }
-
-    return null;
-}
-
-pub fn removeCamera(value: anytype, byCriteria: fn (Camera, @TypeOf(value)) bool) void {
-    for (cameras.items(), 0..) |camera, index| {
-        if (!byCriteria(camera, value)) continue;
-
-        cameras.orderedRemove(index);
-        camera.deinit();
-    }
-}
-
-pub fn removeCameraById(id: []const u8) void {
-    removeCamera(id, struct {
-        pub fn callback(camera: Camera, identifier: []const u8) !void {
-            return std.mem.eql(u8, camera.id, identifier);
-        }
-    }.callback);
-}
-
-pub fn removeCameraByUuid(uuid_: u128) void {
-    removeCamera(uuid_, struct {
-        pub fn callback(camera: Camera, uuid__: []const u8) !void {
-            return camera.uuid == uuid__;
-        }
-    }.callback);
-}
 
 pub const ecs = struct {
     pub const GlobalBehaviour = @import("./ecs/GlobalBehaviour.zig");
@@ -216,7 +167,6 @@ pub const ProjectConfig = struct {
     window: WindowConfig = .{},
     asset_paths: AssetPathConfig = .{},
 
-    use_main_camera: bool = true,
     raylib_log_level: rl.TraceLogLevel = .warning,
 };
 
@@ -261,32 +211,15 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
-    if (config.use_main_camera) {
-        _ = newCamera("main", .{
-            .display = .fullscreen,
-            .draw_mode = .world,
-        }) catch {
-            @panic("Failed to create main camera");
-        };
-    }
-
     return struct {
         pub fn callback(_: void) void {
             eventloop.setActive("default") catch {
                 std.log.info("no default scene", .{});
             };
 
-            const main_camera = getCamera("main");
-
             while (!window.shouldClose() and running) {
                 if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
                     window.toggleDebugMode();
-
-                if (main_camera) |camera|
-                    camera.offset = Vec2(
-                        tof32(rl.getScreenWidth()) / 2,
-                        tof32(rl.getScreenHeight()) / 2,
-                    );
 
                 time.update();
                 display.reset();
@@ -313,8 +246,13 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
                 defer rl.endDrawing();
 
                 window.clearBackground();
-                {
-                    for (cameras.items()) |camera| {
+                rendering: {
+                    const active_scene = activeScene() orelse {
+                        std.log.err("no scene is loaded", .{});
+                        break :rendering;
+                    };
+
+                    for (active_scene.cameras.items()) |camera| {
                         camera.begin() catch {
                             std.log.err("camera failed to begin context", .{});
                         };
@@ -324,7 +262,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
                             .none => continue,
                             .world => display.render(),
                             .custom => if (camera.draw_fn) |func| func() catch {
-                                std.log.err("error whiel running custom camera draw function", .{});
+                                std.log.err("error while running custom camera draw function", .{});
                             },
                         }
                     }
@@ -385,6 +323,16 @@ pub fn globalBehaviours(behaviours: anytype) void {
     };
 }
 
+pub fn cameras(camera_configs: []const struct { id: []const u8, options: Camera.Options }) void {
+    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+
+    for (camera_configs) |config| {
+        _ = selected_scene.addDefaultCamera(config.id, config.options) catch {
+            std.log.err("failed to add camera: {s}", .{config.id});
+        };
+    }
+}
+
 pub const prefab = Prefab.init;
 
 // Runtime Entity / Scene Handling
@@ -428,16 +376,30 @@ pub fn makeEntityI(id: []const u8, index: u32, components: anytype) !*Entity {
     return ptr;
 }
 
+pub inline fn activeScene() ?*Scene {
+    return eventloop.active_scene;
+}
+
+pub fn getEntity(target: EntityTargetType) ?*Entity {
+    const ascene = eventloop.active_scene orelse return;
+
+    return switch (target) {
+        .id => |id| ascene.getEntityById(id),
+        .uuid => |target_uuid| ascene.getEntityByUuid(target_uuid),
+        .ptr => |ptr| ptr,
+    };
+}
+
 /// The scene will be loaded after the currect eventloop cycle is executed.
 pub const loadScene = eventloop.setActive;
 
-const RemoveEntityTag = enum {
+const EntityTargetTag = enum {
     id,
     uuid,
     ptr,
 };
 
-const RemoveEntityTargetType = union(RemoveEntityTag) {
+const EntityTargetType = union(EntityTargetTag) {
     const Self = @This();
 
     id: []const u8,
@@ -457,7 +419,7 @@ const RemoveEntityTargetType = union(RemoveEntityTag) {
     }
 };
 
-pub fn removeEntity(target: RemoveEntityTargetType) void {
+pub fn removeEntity(target: EntityTargetType) void {
     const ascene = eventloop.active_scene orelse return;
     switch (target) {
         .id => |id| ascene.removeEntityById(id),

@@ -4,6 +4,7 @@ const Allocator = @import("std").mem.Allocator;
 const loom = @import("../root.zig");
 const Entity = loom.Entity;
 const GlobalBehaviour = loom.GlobalBehaviour;
+const Camera = loom.Camera;
 
 const Self = @This();
 var active: ?*Self = null;
@@ -17,6 +18,8 @@ entities: std.ArrayList(*Entity),
 new_entities: std.ArrayList(*Entity),
 
 behaviours: std.ArrayList(*GlobalBehaviour),
+cameras: loom.List(*loom.Camera),
+default_cameras: loom.List(*loom.Camera),
 
 is_active: bool = false,
 is_alive: bool = false,
@@ -34,6 +37,8 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
         .entities = .empty,
         .new_entities = .empty,
         .behaviours = .empty,
+        .cameras = .init(allocator),
+        .default_cameras = .init(allocator),
     };
 }
 
@@ -49,6 +54,7 @@ pub fn deinit(self: *Self) void {
 
     self.prefabs.deinit(self.alloc);
     self.behaviours.deinit(self.alloc);
+    self.cameras.deinit();
 }
 
 pub fn destroy(self: *Self) void {
@@ -58,6 +64,8 @@ pub fn destroy(self: *Self) void {
 
 pub fn load(self: *Self) !void {
     if (!self.is_alive) return;
+
+    self.cameras = try self.default_cameras.clone();
 
     for (self.behaviours.items) |behaviour| {
         behaviour.callSafe(.awake, self);
@@ -111,6 +119,13 @@ pub fn unload(self: *Self) void {
 
     self.entities.clearAndFree(self.alloc);
     self.is_active = false;
+
+    for (self.cameras.items()) |camera| {
+        camera.deinit();
+        loom.allocators.generic().destroy(camera);
+    }
+
+    self.cameras.clearAndFree();
 }
 
 pub fn execute(self: *Self) void {
@@ -256,7 +271,7 @@ pub fn isEntityAliveUuid(self: *Self, uuid: u128) bool {
 
 pub fn useGlobalBehaviours(self: *Self, behaviours: anytype) !void {
     if (self.is_active) @panic("cannot change the behaviours of an active scene");
-    
+
     for (self.behaviours.items) |behaviour| {
         behaviour.callSafe(.end, self);
     }
@@ -268,4 +283,58 @@ pub fn useGlobalBehaviours(self: *Self, behaviours: anytype) !void {
 
         try self.behaviours.append(self.alloc, ptr);
     }
+}
+
+pub fn addDefaultCamera(self: *Self, id: []const u8, options: Camera.Options) !*Camera {
+    const ptr = try loom.allocators.generic().create(Camera);
+    ptr.* = try .init(id, options);
+
+    try self.default_cameras.append(ptr);
+
+    return ptr;
+}
+
+pub fn addCamera(self: *Self, id: []const u8, options: Camera.Options) !*Camera {
+    const ptr = try loom.allocators.generic().create(Camera);
+    ptr.* = try .init(id, options);
+
+    try self.cameras.append(ptr);
+
+    return ptr;
+}
+
+pub fn getCamera(self: *Self, id: []const u8) ?*Camera {
+    for (self.cameras.items()) |camera| {
+        if (!std.mem.eql(u8, camera.id, id)) continue;
+
+        return camera;
+    }
+
+    return null;
+}
+
+pub fn removeCamera(self: *Self, value: anytype, byCriteria: fn (Camera, @TypeOf(value)) bool) void {
+    for (self.cameras.items(), 0..) |camera, index| {
+        if (!byCriteria(camera, value)) continue;
+
+        self.cameras.orderedRemove(index);
+        camera.deinit();
+        loom.allocators.generic().destroy(camera);
+    }
+}
+
+pub fn removeCameraById(self: *Self, id: []const u8) void {
+    self.removeCamera(id, struct {
+        pub fn callback(camera: Camera, identifier: []const u8) !void {
+            return std.mem.eql(u8, camera.id, identifier);
+        }
+    }.callback);
+}
+
+pub fn removeCameraByUuid(self: *Self, uuid_: u128) void {
+    self.removeCamera(uuid_, struct {
+        pub fn callback(camera: Camera, uuid__: []const u8) !void {
+            return camera.uuid == uuid__;
+        }
+    }.callback);
 }

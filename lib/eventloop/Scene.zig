@@ -15,7 +15,7 @@ alloc: Allocator,
 
 prefabs: std.ArrayList(loom.Prefab),
 entities: std.ArrayList(*Entity),
-new_entities: std.ArrayList(*Entity),
+new_entities: loom.List(*Entity),
 
 behaviours: std.ArrayList(*GlobalBehaviour),
 cameras: loom.List(*loom.Camera),
@@ -35,7 +35,7 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
         .is_alive = true,
         .prefabs = .empty,
         .entities = .empty,
-        .new_entities = .empty,
+        .new_entities = .init(allocator),
         .behaviours = .empty,
         .cameras = .init(allocator),
         .default_cameras = .init(allocator),
@@ -153,7 +153,12 @@ pub fn execute(self: *Self) void {
         if (is_tick) behaviour.callSafe(.tick, self);
     }
 
-    for (self.new_entities.items) |entity| {
+    const new_entities = self.new_entities.toOwnedSlice() catch fail: {
+        std.log.err("Failed to add new entities", .{});
+        break :fail &.{};
+    };
+    for (new_entities) |entity| {
+        std.log.debug("asdasdasd", .{});
         if (entity.remove_next_frame) continue;
         self.entities.append(self.alloc, entity) catch |err| {
             std.log.err("failed to add entity, error: {any}", .{err});
@@ -165,8 +170,6 @@ pub fn execute(self: *Self) void {
             continue;
         };
     }
-
-    self.new_entities.clearAndFree(self.alloc);
 
     const len = self.entities.items.len;
     for (1..len + 1) |b| {
@@ -216,7 +219,7 @@ pub fn newEntity(self: *Self, id: []const u8, component_tuple: anytype) !void {
 pub fn addEntity(self: *Self, entity: *loom.Entity) !void {
     if (!self.is_alive) return;
 
-    try self.new_entities.append(self.alloc, entity);
+    try self.new_entities.append(entity);
 }
 
 pub fn getEntity(self: *Self, value: anytype, eqls: *const fn (@TypeOf(value), *Entity) bool) ?*Entity {

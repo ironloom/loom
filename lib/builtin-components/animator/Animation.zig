@@ -1,11 +1,11 @@
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
-const loom = @import("../../root.zig");
+const lm = @import("../../root.zig");
 const shared = @import("./types.zig");
 
-const tof32 = loom.tof32;
-const coerceTo = loom.coerceTo;
+const tof32 = lm.tof32;
+const coerceTo = lm.coerceTo;
 
 const Self = @This();
 const MAX_FRAMES: comptime_float = 10;
@@ -14,10 +14,10 @@ name: []const u8,
 uuid: u128,
 
 keys: ?[]i32 = null,
-keysArrayList: ?std.ArrayList(i32) = null,
+keysArrayList: ?lm.List(i32) = null,
 keyframes: ?std.AutoHashMap(i32, shared.Keyframe) = null,
 base_keyframes: []const shared.Keyframe,
-unregistered_keyframes: ?std.ArrayList(shared.Keyframe) = null,
+unregistered_keyframes: ?lm.List(shared.Keyframe) = null,
 
 /// Length of the entire animation, in seconds.
 length: f64 = 0,
@@ -42,7 +42,7 @@ pub fn init(name: []const u8, length: anytype, timing_function: shared.TimingFun
         .uuid = 0,
         .alloc = std.heap.smp_allocator,
         .base_keyframes = frames,
-        .length = length,
+        .length = lm.tof64(length * 10),
         .timing_function = timing_function,
     };
 }
@@ -52,7 +52,7 @@ pub fn init(name: []const u8, length: anytype, timing_function: shared.TimingFun
 //     defer keyframes.deinit();
 
 //     var self = Self.init(name, length, timing_function);
-//     for (keyframes.items) |kf| {
+//     for (keyframes.items()) |kf| {
 //         _ = self.append(kf);
 //     }
 //     self.close();
@@ -66,7 +66,7 @@ pub fn deinit(self: *Self) void {
     if (self.keyframes) |*skf|
         skf.deinit();
 
-    if (self.unregistered_keyframes) |sukf|
+    if (self.unregistered_keyframes) |*sukf|
         sukf.deinit();
 }
 
@@ -89,9 +89,9 @@ pub fn sortKeys(self: *Self) void {
     }
 }
 
-fn makeKeysArrayList(self: *Self) *std.ArrayList(i32) {
+fn makeKeysArrayList(self: *Self) *lm.List(i32) {
     return &(self.keysArrayList orelse Blk: {
-        self.keysArrayList = std.ArrayList(i32).init(self.alloc);
+        self.keysArrayList = lm.List(i32).init(self.alloc);
         break :Blk self.keysArrayList.?;
     });
 }
@@ -99,7 +99,7 @@ fn makeKeysArrayList(self: *Self) *std.ArrayList(i32) {
 fn makeKeySliceAndSort(self: *Self) !void {
     const array_list = self.makeKeysArrayList();
 
-    self.keys = try loom.cloneToOwnedSlice(i32, self.alloc, array_list.*);
+    self.keys = try array_list.cloneToOwnedSlice();
     self.sortKeys();
 }
 
@@ -117,7 +117,7 @@ pub fn chain(self: *Self, percent: f32, keyframe: shared.Keyframe) *Self {
 
     const array_list = self.makeKeysArrayList();
 
-    self_keyframes.put(loom.toi32(percent), keyframe) catch return self;
+    self_keyframes.put(lm.toi32(percent), keyframe) catch return self;
     array_list.append(percent) catch return self;
 
     return self;
@@ -125,7 +125,7 @@ pub fn chain(self: *Self, percent: f32, keyframe: shared.Keyframe) *Self {
 
 pub fn append(self: *Self, keyframe: shared.Keyframe) *Self {
     const unregistered_keyframes = &(self.unregistered_keyframes orelse Blk: {
-        self.unregistered_keyframes = std.ArrayList(shared.Keyframe).init(self.alloc);
+        self.unregistered_keyframes = lm.List(shared.Keyframe).init(self.alloc);
         break :Blk self.unregistered_keyframes.?;
     });
 
@@ -148,11 +148,11 @@ pub fn close(self: *Self) void {
 
     const keysArrayList = self.makeKeysArrayList();
 
-    const keyframe_percent_distance: f32 = MAX_FRAMES / tof32(unregistered_keyframes.items.len - 1);
-    for (unregistered_keyframes.items, 0..) |keyframe, index| {
-        const percent = loom.toi32(@min(tof32(index) * keyframe_percent_distance, MAX_FRAMES));
+    const keyframe_percent_distance: f32 = MAX_FRAMES / tof32(unregistered_keyframes.len() - 1);
+    for (unregistered_keyframes.items(), 0..) |keyframe, index| {
+        const percent = lm.toi32(@min(tof32(index) * keyframe_percent_distance, MAX_FRAMES));
 
-        keyframes.put(loom.toi32(percent), keyframe) catch {
+        keyframes.put(lm.toi32(percent), keyframe) catch {
             std.log.warn("Couldn't add percent-keyframe pair!", .{});
         };
 
@@ -171,8 +171,8 @@ pub fn next(self: *Self) ?shared.Keyframe {
     for (keys) |percent| {
         if (self.current_percent >= percent) continue;
 
-        self.next_index = loom.coerceTo(usize, percent) orelse 0;
-        return keyframes.get(loom.toi32(percent));
+        self.next_index = lm.coerceTo(usize, percent) orelse 0;
+        return keyframes.get(lm.toi32(percent));
     }
 
     return null;
@@ -193,8 +193,8 @@ pub fn current(self: *Self) ?shared.Keyframe {
         continue;
     }
 
-    self.current_index = loom.tousize(last);
-    return keyframes.get(loom.toi32(last));
+    self.current_index = lm.tousize(last);
+    return keyframes.get(lm.toi32(last));
 }
 
 pub fn incrementCurrentPercent(self: *Self, increment_to: i32) void {

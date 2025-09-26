@@ -1,18 +1,22 @@
 const std = @import("std");
 const lm = @import("loom");
+const ui = lm.ui;
 
 const Self = @This();
 
 const SPEED: comptime_float = 330;
 
 transform: ?*lm.Transform = null,
+camera: ?*lm.Camera = null,
 
 pub fn Awake(self: *Self, entity: *lm.Entity) !void {
     self.transform = try entity.pullComponent(lm.Transform);
+    self.camera = lm.activeScene().?.getCamera("main");
 }
 
 pub fn Update(self: *Self) !void {
     const transform: *lm.Transform = try lm.ensureComponent(self.transform);
+    const camera: *lm.Camera = try lm.ensureComponent(self.camera);
 
     lm.ui.new(.{
         .id = .ID("press-f"),
@@ -37,6 +41,30 @@ pub fn Update(self: *Self) !void {
                 .letter_spacing = 3,
             });
         }
+    });
+
+    const ui_pos = camera.worldToScreenPos(lm.vec3ToVec2(transform.position)).subtract(.init(48, 48));
+
+    lm.ui.new(.{
+        .id = .ID("player-tag"),
+        .floating = .{
+            .attach_to = .to_root,
+            .offset = .{ .x = ui_pos.x, .y = ui_pos.y },
+        },
+        .layout = .{
+            .direction = .top_to_bottom,
+            .child_gap = 36,
+            .sizing = .{
+                .w = .fixed(96),
+                .h = .fixed(16),
+            },
+            .child_alignment = .center,
+        },
+    })({
+        lm.ui.text("Player", .{
+            .letter_spacing = 3,
+            .alignment = .center,
+        });
     });
 
     var movement_vector = lm.input.gamepad.getStickVector(0, .left, 0.1);

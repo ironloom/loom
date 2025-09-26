@@ -157,7 +157,7 @@ pub fn end(self: *Self) void {
 }
 
 pub fn screenToWorldPos(self: *Self, pos: lm.Vector2) lm.Vector2 {
-    const offset = self.partial orelse .init(0, 0, 0, 0);
+    const offset = self.partial orelse lm.Rect(0, 0, 0, 0);
 
     return rl.getScreenToWorld2D(
         pos,
@@ -165,10 +165,10 @@ pub fn screenToWorldPos(self: *Self, pos: lm.Vector2) lm.Vector2 {
     ).subtract(.init(offset.x, offset.y));
 }
 
-pub fn worldToScreen(self: *Self, pos: lm.Vector2) lm.Vector2 {
-    const offset = self.partial orelse .init(0, 0, 0, 0);
+pub fn worldToScreenPos(self: *Self, pos: lm.Vector2) lm.Vector2 {
+    const offset = self.partial orelse lm.Rect(0, 0, 0, 0);
 
-    return rl.getWorldToScreen(
+    return rl.getWorldToScreen2D(
         pos,
         self.camera,
     ).add(.init(offset.x, offset.y));

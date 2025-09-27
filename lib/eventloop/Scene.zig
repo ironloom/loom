@@ -158,7 +158,6 @@ pub fn execute(self: *Self) void {
         break :fail &.{};
     };
     for (new_entities) |entity| {
-        std.log.debug("asdasdasd", .{});
         if (entity.remove_next_frame) continue;
         self.entities.append(self.alloc, entity) catch |err| {
             std.log.err("failed to add entity, error: {any}", .{err});

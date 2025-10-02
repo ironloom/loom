@@ -27,6 +27,97 @@ pub fn build(b: *std.Build) !void {
     const uuid_dep = b.dependency("uuid", .{ .target = target, .optimize = optimize });
     const uuid = uuid_dep.module("uuid");
 
+    if (b.lazyDependency("system_sdk", .{})) |system_sdk| switch (target.result.os.tag) {
+        .windows => {
+            if (target.result.cpu.arch.isX86() and (target.result.abi.isGnu() or target.result.abi.isMusl())) {
+                loom_mod.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
+                raylib.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
+            }
+        },
+        .macos => {
+            loom_mod.addLibraryPath(system_sdk.path("macos12/usr/lib"));
+            loom_mod.addFrameworkPath(system_sdk.path("macos12/System/Library/Frameworks"));
+
+            loom_mod.linkFramework("Foundation", .{ .needed = true });
+            loom_mod.linkFramework("CoreFoundation", .{ .needed = true });
+            loom_mod.linkFramework("CoreGraphics", .{ .needed = true });
+            loom_mod.linkFramework("CoreServices", .{ .needed = true });
+            loom_mod.linkFramework("AppKit", .{ .needed = true });
+            loom_mod.linkFramework("IOKit", .{ .needed = true });
+
+            loom_mod.linkSystemLibrary("objc", .{});
+
+            raylib.addLibraryPath(system_sdk.path("macos12/usr/lib"));
+            raylib.addFrameworkPath(system_sdk.path("macos12/System/Library/Frameworks"));
+
+            raylib.linkFramework("Foundation", .{ .needed = true });
+            raylib.linkFramework("CoreFoundation", .{ .needed = true });
+            raylib.linkFramework("CoreGraphics", .{ .needed = true });
+            raylib.linkFramework("CoreServices", .{ .needed = true });
+            raylib.linkFramework("AppKit", .{ .needed = true });
+            raylib.linkFramework("IOKit", .{ .needed = true });
+
+            raylib.linkSystemLibrary("objc", .{});
+        },
+        .linux => {
+            if (target.result.cpu.arch.isX86()) {
+                // loom_mod.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
+                // loom_mod.addSystemIncludePath(system_sdk.path("linux/include"));
+
+                // loom_mod.addLibraryPath(.{ .cwd_relative = "/usr/lib" });
+                // loom_mod.addSystemIncludePath(.{ .cwd_relative = "/usr/include" });
+                // loom_mod.addLibraryPath(.{ .cwd_relative = "/lib" });
+                // loom_mod.addSystemIncludePath(.{ .cwd_relative = "/include" });
+
+                // loom_mod.linkSystemLibrary("GL", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("GLX", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("X11", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xcursor", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xext", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xi", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xinerama", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xrandr", .{ .needed = true });
+                // loom_mod.linkSystemLibrary("Xrender", .{ .needed = true });
+
+                raylib.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
+                raylib.addSystemIncludePath(system_sdk.path("linux/include"));
+
+                raylib.addLibraryPath(.{ .cwd_relative = "/usr/bin" });
+                raylib.addLibraryPath(.{ .cwd_relative = "/usr/lib/x86_64-linux-gnu" });
+                raylib.addSystemIncludePath(.{ .cwd_relative = "/usr/include/X11" });
+
+                raylib.linkSystemLibrary("GL", .{ .needed = true });
+                raylib.linkSystemLibrary("GLX", .{ .needed = true });
+                raylib.linkSystemLibrary("X11", .{ .needed = true });
+                raylib.linkSystemLibrary("Xcursor", .{ .needed = true });
+                raylib.linkSystemLibrary("Xext", .{ .needed = true });
+                raylib.linkSystemLibrary("Xi", .{ .needed = true });
+                raylib.linkSystemLibrary("Xinerama", .{ .needed = true });
+                raylib.linkSystemLibrary("Xrandr", .{ .needed = true });
+                raylib.linkSystemLibrary("Xrender", .{ .needed = true });
+
+                raylib_artifact.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
+                raylib_artifact.addSystemIncludePath(system_sdk.path("linux/include"));
+
+                raylib_artifact.addLibraryPath(.{ .cwd_relative = "/usr/bin" });
+                raylib_artifact.addLibraryPath(.{ .cwd_relative = "/usr/lib/x86_64-linux-gnu" });
+                raylib_artifact.addSystemIncludePath(.{ .cwd_relative = "/usr/include/X11" });
+
+                raylib_artifact.linkSystemLibrary("GLX");
+                raylib_artifact.linkSystemLibrary("X11");
+                raylib_artifact.linkSystemLibrary("Xcursor");
+                raylib_artifact.linkSystemLibrary("Xext");
+                raylib_artifact.linkSystemLibrary("Xi");
+                raylib_artifact.linkSystemLibrary("Xinerama");
+                raylib_artifact.linkSystemLibrary("Xrandr");
+                raylib_artifact.linkSystemLibrary("Xrender");
+            } else if (target.result.cpu.arch == .aarch64) {
+                loom_mod.addLibraryPath(system_sdk.path("linux/lib/aarch64-linux-gnu"));
+            }
+        },
+        else => {},
+    };
+
     loom_mod.addImport("raylib", raylib);
     loom_mod.addImport("raygui", raygui);
     loom_mod.addImport("zclay", zclay);
@@ -60,7 +151,7 @@ pub fn build(b: *std.Build) !void {
         "animator",
     };
 
-    const run_all_step = b.step("example=all", "");
+    const build_all_step = b.step("example=all", "");
     inline for (examples) |example| {
         const exe_mod = b.createModule(.{
             .root_source_file = b.path("examples/" ++ example ++ "/main.zig"),
@@ -75,13 +166,18 @@ pub fn build(b: *std.Build) !void {
             .root_module = exe_mod,
         });
 
-        b.installArtifact(exe);
+        const run_step = b.step("run-example=" ++ example, "");
+        const build_step = b.step("example=" ++ example, "");
 
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(b.getInstallStep());
 
-        const run_step = b.step("example=" ++ example, "");
+        const exe_cmd = b.addInstallArtifact(exe, .{});
+        build_step.dependOn(b.getInstallStep());
+
         run_step.dependOn(&run_cmd.step);
-        run_all_step.dependOn(&run_cmd.step);
+
+        build_step.dependOn(&exe_cmd.step);
+        build_all_step.dependOn(&exe_cmd.step);
     }
 }

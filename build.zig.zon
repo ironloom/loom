@@ -1,6 +1,6 @@
 .{
     .name = .loom,
-    .version = "0.7.4",
+    .version = "0.8.0",
     .fingerprint = 0xc2597137c472d6ae, // Changing this has security and trust implications.
 
     // Tracks the earliest Zig version that the package considers to be a
@@ -19,6 +19,10 @@
         .zclay = .{
             .url = "git+https://github.com/johan0A/clay-zig-bindings?ref=v0.2.2+0.14#18cc9c148f02c3f00f824cc3a36db5030fd3de34",
             .hash = "zclay-0.2.2-Ej1rkJfRAABn4fTSKQ1Rn54ssdmyCsuBT3zjrdhSxTO4",
+        },
+        .system_sdk = .{
+            .url = "git+https://github.com/zig-gamedev/system_sdk#777e76828f05d5d223df47a4c0de95ae4efde884",
+            .hash = "system_sdk-0.3.0-dev-alwUNqAaaALJ5VoZImZo3n6prezBnQnrpziun3ZeZwcp",
         },
     },
     .paths = .{

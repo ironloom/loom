@@ -9,6 +9,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
 
     const raylib_dep = b.dependency("raylib_zig", .{
@@ -46,18 +47,6 @@ pub fn build(b: *std.Build) !void {
             loom_mod.linkFramework("IOKit", .{ .needed = true });
 
             loom_mod.linkSystemLibrary("objc", .{});
-
-            raylib.addLibraryPath(system_sdk.path("macos12/usr/lib"));
-            raylib.addFrameworkPath(system_sdk.path("macos12/System/Library/Frameworks"));
-
-            raylib.linkFramework("Foundation", .{ .needed = true });
-            raylib.linkFramework("CoreFoundation", .{ .needed = true });
-            raylib.linkFramework("CoreGraphics", .{ .needed = true });
-            raylib.linkFramework("CoreServices", .{ .needed = true });
-            raylib.linkFramework("AppKit", .{ .needed = true });
-            raylib.linkFramework("IOKit", .{ .needed = true });
-
-            raylib.linkSystemLibrary("objc", .{});
         },
         .linux => {
             if (target.result.cpu.arch.isX86()) {

@@ -1,4 +1,4 @@
-FROM alpine:edge AS builder
+FROM alpine:edge AS aarch64_alpine_builder
 
 RUN apk update
 RUN apk add zig
@@ -10,13 +10,11 @@ WORKDIR /loom/zig-out
 WORKDIR /loom/zig-out/final
 WORKDIR /loom/
 
-RUN rm -rf .zig-cache/
-RUN zig build -Dtarget=aarch64-macos --release=safe
-RUN rm -rf .zig-cache/
-RUN zig build -Dtarget=x86_64-windows --release=safe
+RUN zig build example=cameras -Dtarget=aarch64-macos --release=safe
+RUN zig build example=cameras -Dtarget=x86_64-windows --release=safe
 
 
-FROM --platform=linux/amd64 ubuntu:24.04  AS x86_64_ubuntu_builder
+FROM --platform=linux/amd64 ubuntu:22.04  AS x86_64_ubuntu_builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl pkgconf ca-certificates \
@@ -39,5 +37,9 @@ WORKDIR /loom/zig-out/final
 WORKDIR /loom/
 
 RUN rm -rf .zig-cache/
-RUN ["zig", "build", "-Dtarget=x86_64-linux-gnu", "--release=safe", "--seed", "0", "--sysroot", "/"]
+RUN zig build -Dtarget=x86_64-linux-gnu --release=safe --seed 0
 
+FROM scratch AS final
+
+COPY --from=aarch64_alpine_builder /loom/zig-out/bin .
+COPY --from=x86_64_ubuntu_builder /loom/zig-out/bin .

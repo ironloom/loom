@@ -32,7 +32,6 @@ pub fn build(b: *std.Build) !void {
         .windows => {
             if (target.result.cpu.arch.isX86() and (target.result.abi.isGnu() or target.result.abi.isMusl())) {
                 loom_mod.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
-                raylib.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
             }
         },
         .macos => {
@@ -50,24 +49,6 @@ pub fn build(b: *std.Build) !void {
         },
         .linux => {
             if (target.result.cpu.arch.isX86()) {
-                // loom_mod.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
-                // loom_mod.addSystemIncludePath(system_sdk.path("linux/include"));
-
-                // loom_mod.addLibraryPath(.{ .cwd_relative = "/usr/lib" });
-                // loom_mod.addSystemIncludePath(.{ .cwd_relative = "/usr/include" });
-                // loom_mod.addLibraryPath(.{ .cwd_relative = "/lib" });
-                // loom_mod.addSystemIncludePath(.{ .cwd_relative = "/include" });
-
-                // loom_mod.linkSystemLibrary("GL", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("GLX", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("X11", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xcursor", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xext", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xi", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xinerama", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xrandr", .{ .needed = true });
-                // loom_mod.linkSystemLibrary("Xrender", .{ .needed = true });
-
                 raylib.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
                 raylib.addSystemIncludePath(system_sdk.path("linux/include"));
 

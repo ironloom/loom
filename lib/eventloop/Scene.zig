@@ -83,6 +83,13 @@ pub fn load(self: *Self) !void {
         });
     }
 
+    for (self.prefabs.items) |prefabs| {
+        const entity = try prefabs.makeInstance();
+        try self.entities.append(self.alloc, entity);
+
+        try entity.addPreparedComponents(false);
+    }
+
     for (self.behaviours.items) |behaviour| {
         behaviour.callSafe(.awake, self);
     }
@@ -91,12 +98,7 @@ pub fn load(self: *Self) !void {
         behaviour.callSafe(.start, self);
     }
 
-    for (self.prefabs.items) |prefabs| {
-        const entity = try prefabs.makeInstance();
-        try self.entities.append(self.alloc, entity);
-
-        try entity.addPreparedComponents(false);
-
+    for (self.entities.items) |entity| {
         entity.dispatchEvent(.awake);
     }
 

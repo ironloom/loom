@@ -1,10 +1,13 @@
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
-const loom = @import("../root.zig");
+const List = @import("List.zig");
 
-const coerceTo = loom.coerceTo;
-const cloneToOwnedSlice = loom.cloneToOwnedSlice;
+const coerceTo = @import("type_switcher.zig").coerceTo;
+pub fn cloneToOwnedSlice(comptime T: type, allocator: std.mem.Allocator, list: std.ArrayList(T)) ![]T {
+    var cloned = try list.clone(allocator);
+    return try cloned.toOwnedSlice(allocator);
+}
 
 pub const ArrayOptions = struct {
     allocator: Allocator = std.heap.page_allocator,
@@ -37,8 +40,7 @@ pub fn Array(comptime T: type) type {
             defer list.deinit(options.allocator);
 
             inline for (tuple) |item| {
-                const item_value = @as(
-                    ?T,
+                const item_value: ?T =
                     if (T != @TypeOf(item))
                         switch (options.try_type_change) {
                             true => coerceTo(T, item) orelse switch (options.on_type_change_fail) {
@@ -64,8 +66,7 @@ pub fn Array(comptime T: type) type {
                             },
                         }
                     else
-                        item,
-                );
+                        item;
 
                 if (item_value) |c| {
                     try list.append(options.allocator, c);
@@ -111,7 +112,7 @@ pub fn Array(comptime T: type) type {
             };
         }
 
-        pub fn fromList(list: loom.List(T)) !Self {
+        pub fn fromList(list: List(T)) !Self {
             return try Self.fromArrayList(list.allocator, list.arrlist);
         }
 
@@ -242,11 +243,16 @@ pub fn Array(comptime T: type) type {
         }
 
         pub fn toArrayList(self: Self) !std.ArrayList(T) {
-            const list = try std.ArrayList(T).initCapacity(self.alloc, self.len());
-
-            @memcpy(list.items, self.items);
+            var list = try std.ArrayList(T).initCapacity(self.alloc, self.len());
+            for (self.items) |item| {
+                try list.append(self.alloc, item);
+            }
 
             return list;
+        }
+
+        pub inline fn toList(self: Self) !List(T) {
+            return .fromArray(self);
         }
 
         pub fn deinit(self: Self) void {

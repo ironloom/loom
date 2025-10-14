@@ -73,7 +73,7 @@ pub fn init(id: []const u8, options: Options) !Self {
         .uuid = lm.UUIDv7(),
         .partial = partial,
         .shader = if (options.shader) |path|
-            lm.assets.shader.get(path, .{})
+            lm.assets.shader.get(path, &.{})
         else
             null,
         .draw_mode = options.draw_mode,

@@ -76,7 +76,7 @@ pub const files = struct {
 
 fn AssetCache(
     comptime T: type,
-    comptime parsefn: *const fn (data: []const u8, filetype: []const u8, path: []const u8, mod: anytype) anyerror!T,
+    comptime parsefn: *const fn (data: []const u8, filetype: []const u8, path: []const u8, mod: []const i32) anyerror!T,
     comptime releasefn: *const fn (data: T) void,
 ) type {
     return struct {
@@ -124,18 +124,20 @@ fn AssetCache(
             return STRING_SUM + mod * RANDOM_PRIME;
         }
 
-        fn parseModAndGetHash(rel_path: []const u8, modifiers: anytype) u64 {
-            var mods = loom.array(f32, modifiers);
-            defer mods.deinit();
+        fn parseModifierHashAndGetCompleteHash(rel_path: []const u8, modifiers: []const i32) u64 {
+            var modifier_hash: u64 = 0;
+            for (modifiers, 0..) |modifier, index| {
+                const non_negaitve_modifier = (if (modifier < 0) @as(i32, -1) else @as(i32, 1)) * modifier;
 
-            const mod = (mods.at(0) orelse 1) * (mods.at(1) orelse 1) * 7;
+                modifier_hash +%= @as(u64, @intCast(non_negaitve_modifier)) * (index + 1);
+            }
 
-            return hash(rel_path, loom.coerceTo(u64, mod) orelse 0);
+            return hash(rel_path, loom.coerceTo(u64, modifier_hash) orelse 0);
         }
 
-        pub fn store(rel_path: []const u8, modifiers: anytype) !void {
+        pub fn store(rel_path: []const u8, modifiers: []const i32) !void {
             const hmap = hashMap();
-            const HASH = parseModAndGetHash(rel_path, modifiers);
+            const HASH = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
             if (hmap.contains(HASH)) return;
 
             const data = try files.getData(rel_path);
@@ -149,8 +151,8 @@ fn AssetCache(
             try hmap.put(HASH, try sharedPtr(parsed));
         }
 
-        pub fn release(rel_path: []const u8, modifiers: anytype) void {
-            const path_hash = parseModAndGetHash(rel_path, modifiers);
+        pub fn release(rel_path: []const u8, modifiers: []const i32) void {
+            const path_hash = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
             const hmap = hashMap();
 
             const sptr = hmap.get(path_hash) orelse return;
@@ -195,8 +197,8 @@ fn AssetCache(
             _ = hmap.remove(entry_hash);
         }
 
-        pub fn get(rel_path: []const u8, modifiers: anytype) ?*T {
-            const HASH = parseModAndGetHash(rel_path, modifiers);
+        pub fn get(rel_path: []const u8, modifiers: []const i32) ?*T {
+            const HASH = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
 
             const hmap = hashMap();
 
@@ -212,18 +214,15 @@ fn AssetCache(
 pub const image = AssetCache(
     Image,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: anytype) !Image {
-            const mods = loom.array(i32, modifiers);
-            defer mods.deinit();
-
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: []const i32) !Image {
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";
             defer loom.allocators.generic().free(str);
 
-            if (mods.at(0) == 0) mods.set(0, 1);
-            if (mods.at(1) == 0) mods.set(1, 1);
+            const width = if (modifiers.len > 0) @max(1, modifiers[0]) else 1;
+            const height = if (modifiers.len > 1) @max(1, modifiers[1]) else 1;
 
             var img = try loom.rl.loadImageFromMemory(str, data);
-            loom.rl.imageResizeNN(&img, mods.at(0) orelse 0, mods.at(1) orelse 0);
+            loom.rl.imageResizeNN(&img, width, height);
 
             return img;
         }
@@ -238,20 +237,17 @@ pub const image = AssetCache(
 pub const texture = AssetCache(
     Texture,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: anytype) !Texture {
-            var mods = loom.array(i32, modifiers);
-            defer mods.deinit();
-
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: []const i32) !Texture {
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";
             defer loom.allocators.generic().free(str);
 
             var img = try loom.rl.loadImageFromMemory(str, data);
             defer loom.rl.unloadImage(img);
 
-            if (mods.at(0) == 0) mods.set(0, 1);
-            if (mods.at(1) == 0) mods.set(1, 1);
+            const width = if (modifiers.len > 0) @max(1, modifiers[0]) else 1;
+            const height = if (modifiers.len > 1) @max(1, modifiers[1]) else 1;
 
-            loom.rl.imageResizeNN(&img, mods.at(0) orelse 0, mods.at(1) orelse 0);
+            loom.rl.imageResizeNN(&img, width, height);
 
             const txtr = try loom.rl.loadTextureFromImage(img);
             return txtr;
@@ -267,12 +263,9 @@ pub const texture = AssetCache(
 pub const font = AssetCache(
     Font,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, mod: anytype) !Font {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, fchars: []const i32) !Font {
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";
             defer loom.allocators.generic().free(str);
-
-            var fchars = loom.array(i32, mod);
-            defer fchars.deinit();
 
             var font_chars_base = [_]i32{
                 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, // 0-9
@@ -282,7 +275,7 @@ pub const font = AssetCache(
                 95, 96, 123, 124, 125, 126, // !, ", #, $, %, &, ', (, ), *, +, ,, -, ., /, :, ;, <, =, >, ?, @, [, \, ], ^, _, `, {, |, }, ~
             };
 
-            const font_chars: []i32 = if (fchars.len() == 0) &font_chars_base else fchars.items;
+            const font_chars: []const i32 = if (fchars.len == 0) &font_chars_base else fchars;
 
             const fnt = try loom.rl.loadFontFromMemory(str, data, loom.toi32(font_chars.len), font_chars);
             return fnt;
@@ -298,7 +291,7 @@ pub const font = AssetCache(
 pub const sound = AssetCache(
     Sound,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, _: anytype) !Sound {
+        pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, _: []const i32) !Sound {
             const str: [:0]const u8 = try loom.allocators.generic().dupeZ(u8, filetype);
             defer loom.allocators.generic().free(str);
 
@@ -318,7 +311,7 @@ pub const sound = AssetCache(
 pub const shader = AssetCache(
     Shader,
     struct {
-        pub fn callback(data: []const u8, filetype: []const u8, filename: []const u8, _: anytype) !Shader {
+        pub fn callback(data: []const u8, filetype: []const u8, filename: []const u8, _: []const i32) !Shader {
             var fragment_shader_c_data: ?[:0]const u8 = null;
             defer if (fragment_shader_c_data) |fscd| loom.allocators.generic().free(fscd);
 

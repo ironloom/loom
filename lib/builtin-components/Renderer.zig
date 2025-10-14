@@ -18,7 +18,7 @@ pub const DisplayCache = struct {
         self.texture = null;
         assets.texture.release(
             self.img_path,
-            .{ self.transform.scale.x, self.transform.scale.y },
+            &.{ loom.toi32(self.transform.scale.x), loom.toi32(self.transform.scale.y) },
         );
     }
 };
@@ -71,7 +71,7 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
         },
         .texture = assets.texture.get(
             self.img_path,
-            .{ 0, 0 },
+            &.{ 1, 1 },
         ),
     });
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
@@ -104,7 +104,7 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
             .transform = transform.*,
             .texture = assets.texture.get(
                 self.img_path,
-                .{ tile_size.x, tile_size.y },
+                &.{ loom.toi32(tile_size.x), loom.toi32(tile_size.y) },
             ),
         };
     }

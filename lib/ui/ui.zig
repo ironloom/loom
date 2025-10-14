@@ -90,7 +90,7 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
         })
             continue;
 
-        loom.assets.font.release(cached.name, .{});
+        loom.assets.font.release(cached.name, &.{});
         _ = fonts_cache.swapRemove(index);
     }
 
@@ -99,18 +99,18 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     fonts.clearAndFree(allocator);
 
     for (textures.items) |*texture| {
-        if (texture.refs == 0) loom.assets.texture.release(texture.name, .{ 1, 1 });
+        if (texture.refs == 0) loom.assets.texture.release(texture.name, &.{ 1, 1 });
         texture.refs = 0;
     }
 }
 
 pub fn deinit() void {
     for (fonts.items) |entry| {
-        loom.assets.font.release(entry.name, .{});
+        loom.assets.font.release(entry.name, &.{});
     }
 
     for (textures.items) |texture| {
-        loom.assets.texture.release(texture.name, .{ texture.size.x, texture.size.y });
+        loom.assets.texture.release(texture.name, &.{ loom.toi32(texture.size.x), loom.toi32(texture.size.y) });
     }
 
     fonts_cache.deinit(allocator);

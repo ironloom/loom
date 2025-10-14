@@ -61,7 +61,7 @@ pub fn unload(path: []const u8) void {
     if (!is_alive) return;
     if (!audio_cache.remove(path)) return;
 
-    assets.sound.release(path, .{});
+    assets.sound.release(path, &.{});
 }
 
 pub fn play(path: []const u8) !void {

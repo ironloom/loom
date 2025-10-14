@@ -122,10 +122,10 @@ pub fn unload(self: *Self) void {
         behaviour.callSafe(.end, self);
     }
 
-    const clone = loom.Array(*loom.Entity).fromArrayList(self.alloc, self.entities) catch return;
+    var clone = loom.Array(*loom.Entity).fromArrayList(self.alloc, self.entities) catch return;
     defer clone.deinit();
 
-    for (clone.items) |entity| {
+    for (clone.items()) |entity| {
         for (self.entities.items, 0..) |original, index| {
             if (original.uuid != entity.uuid) continue;
 

@@ -21,7 +21,7 @@ pub const List = lists.List;
 test "Array(T) generic type" {
     const expect = std.testing.expect;
 
-    var test_arr = try Array(u8).init(.{ 1, 2, 3, 4 }, .{
+    var test_arr = try Array(u8).initFromTuple(.{ 1, 2, 3, 4 }, .{
         .allocator = std.testing.allocator,
     });
     defer test_arr.deinit();

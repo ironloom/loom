@@ -38,8 +38,16 @@ pub fn List(comptime T: type) type {
             };
         }
 
+        pub fn fromArrayList(array_list: std.ArrayList(T), allocator: Allocator) Self {
+            return Self{
+                .arrlist = array_list,
+                .allocator = allocator,
+            };
+        }
+
         pub fn deinit(self: *Self) void {
             self.arrlist.deinit(self.allocator);
+            self.* = undefined;
         }
 
         pub inline fn items(self: Self) []T {
@@ -56,7 +64,7 @@ pub fn List(comptime T: type) type {
 
         pub fn at(self: Self, index: anytype) ?T {
             const _index = coerceTo(isize, index) orelse return null;
-            if (_index >= self.len()) return null;
+            if (_index >= self.len() or self.len() == 0) return null;
 
             const real_index: usize = real_index: {
                 if (_index < 0) break :real_index coerceTo(usize, coerceTo(isize, self.len()).? + _index).?;
@@ -225,7 +233,7 @@ test "initWithItems" {
 }
 
 test "fromArray" {
-    var test_array = try Array(u8).init(.{ 1, 2, 3 }, .{ .allocator = std.testing.allocator });
+    var test_array = try Array(u8).init(std.testing.allocator, &.{ 1, 2, 3 });
     defer test_array.deinit();
 
     var from_array = try List(u8).fromArray(test_array);
@@ -261,6 +269,11 @@ test "at" {
     try expect(test_list.at(2) == 3);
     try expect(test_list.at(4) == null);
     try expect(test_list.at(-1) == 3);
+
+    var empty = try List(u8).initWithItems(std.testing.allocator, &.{});
+    defer empty.deinit();
+
+    try expect(empty.at(0) == null);
 }
 
 test "append" {
@@ -477,10 +490,10 @@ test "toArray" {
 
     try expect(test_list.len() == 5);
 
-    const array = try test_list.toArray();
+    var array = try test_list.toArray();
     defer array.deinit();
 
-    try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4, 5 }, array.items);
+    try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4, 5 }, array.slice);
     try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4, 5 }, test_list.items());
 }
 

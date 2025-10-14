@@ -125,7 +125,7 @@ fn AssetCache(
         }
 
         fn parseModAndGetHash(rel_path: []const u8, modifiers: anytype) u64 {
-            const mods = loom.array(f32, modifiers);
+            var mods = loom.array(f32, modifiers);
             defer mods.deinit();
 
             const mod = (mods.at(0) orelse 1) * (mods.at(1) orelse 1) * 7;
@@ -239,7 +239,7 @@ pub const texture = AssetCache(
     Texture,
     struct {
         pub fn callback(data: []const u8, filetype: []const u8, _: []const u8, modifiers: anytype) !Texture {
-            const mods = loom.array(i32, modifiers);
+            var mods = loom.array(i32, modifiers);
             defer mods.deinit();
 
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";

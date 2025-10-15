@@ -94,10 +94,16 @@ fn AssetCache(
             var iter = hmap.iterator();
 
             while (iter.next()) |entry| {
-                const value = entry.value_ptr.*;
-                if (value.*.value) |v|
+                const sptr = entry.value_ptr.*;
+
+                if (sptr.value) |v|
                     releasefn(v);
-                value.destroyUnsafe();
+
+                sptr.value = null;
+                sptr.ref_count = 0;
+
+                sptr.destroy() catch {};
+                _ = hmap.remove(entry.key_ptr.*);
             }
 
             hmap.deinit();
@@ -157,13 +163,14 @@ fn AssetCache(
             const sptr = hmap.get(path_hash) orelse return;
 
             if (sptr.ref_count > 0) {
-                sptr.deinit();
+                sptr.removeRef();
                 return;
             }
 
             if (sptr.value) |v|
                 releasefn(v);
-            sptr.destroy();
+
+            sptr.destroy() catch unreachable;
             _ = hmap.remove(path_hash);
         }
 
@@ -173,8 +180,8 @@ fn AssetCache(
             const entry: HashMapType.Entry = Blk: {
                 var iter = hmap.iterator();
                 while (iter.next()) |entry| {
-                    const value_ptr = entry.value_ptr.*.valueptr();
-                    defer entry.value_ptr.*.deinit();
+                    const value_ptr = entry.value_ptr.*.getRef();
+                    defer entry.value_ptr.*.removeRef();
 
                     if (loom.coerceTo(usize, value_ptr) != loom.coerceTo(usize, ptr)) continue;
                     break :Blk entry;
@@ -186,13 +193,14 @@ fn AssetCache(
             const entry_hash = entry.key_ptr.*;
 
             if (shared_pointer.ref_count > 0) {
-                shared_pointer.deinit();
+                shared_pointer.removeRef();
                 return;
             }
 
             if (shared_pointer.value) |v|
                 releasefn(v);
-            shared_pointer.destroy();
+
+            shared_pointer.destroy() catch unreachable;
             _ = hmap.remove(entry_hash);
         }
 
@@ -202,10 +210,10 @@ fn AssetCache(
             const hmap = hashMap();
 
             const res1 = hmap.get(HASH);
-            if (res1) |r1| return r1.valueptr();
+            if (res1) |r1| return r1.getRef();
 
             store(rel_path, modifiers) catch return null;
-            return if (hmap.get(HASH)) |r| r.valueptr() else null;
+            return if (hmap.get(HASH)) |r| r.getRef() else null;
         }
     };
 }

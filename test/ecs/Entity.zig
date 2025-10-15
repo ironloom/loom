@@ -78,6 +78,14 @@ test "create / destroy" {
     try expect(my_entity.uuid != 0);
 }
 
+test "createAllocId" {
+    var my_entity = try Entity.createAllocId(allocator, "allocated");
+    defer my_entity.destroy();
+
+    try expectEqualStrings(my_entity.id, "allocated");
+    try expect(my_entity.uuid != 0);
+}
+
 test "addPreparedComponents" {
     const TestComponent = struct {
         my_var: usize = 1,
@@ -314,13 +322,13 @@ test "dispatchEvent" {
 
     my_entity.dispatchEvent(.start);
     try expectEqual(2, component.my_var);
-    
+
     my_entity.dispatchEvent(.update);
     try expectEqual(3, component.my_var);
-    
+
     my_entity.dispatchEvent(.tick);
     try expectEqual(4, component.my_var);
-    
+
     my_entity.dispatchEvent(.end);
     try expectEqual(5, component.my_var);
 }

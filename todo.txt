@@ -14,13 +14,17 @@ TAG                     | MEANING
 @test                   | unit test changes
 @input                  | user input / input device information - input.zig
 
+
 +----------------------------------[FINISHED]---------------------------------+
+
 
 +v0.1.0
 x 2025-06-06 rewrite collision system
 
+
 +v0.1.1
 x 2025-06-09 fix summoning mess
+
 
 +v0.1.2
 x 2025-06-09 change Prefabs to be comptime again
@@ -30,9 +34,11 @@ x 2025-06-09 change Prefabs to be comptime again
             get an Entity.
 x 2025-06-09 update readme.md with install instructions
 
+
 +v0.1.3 
 x 2025-06-09 add: display sorting based on y-index @display
 x 2025-06-09 add: example for Z-Y display sorting @examples
+
 
 +v0.1.4
 x 2025-06-09 fix: removeComponent @ecs
@@ -40,17 +46,21 @@ x 2025-06-09 update: project(void)(void) to project(ProjectConfig)(void) @root
 x 2025-06-09 chore: clean up root.zig @root 
 x 2025-06-09 update(readme): use #stable branch as package base @repo 
 
+
 +v0.2.0 release:minor
 x 2025-06-09 release: v0.2.0 @release
 
+
 +0.2.1
 x 2025-06-10 fix: collider rotation
+
 
 +v0.3.0 release:minor
 x 2025-06-10 add: global behaviours @ecs 
     NOTE:   Global behaviours are scene scoped. They are not tied to entities
             only the executing scene.
 x 2025-06-11 add: unit tests for Array(T) @test
+
 
 +v0.4.0 :: The Audio Update release:minor
 x 2025-06-11 add: Audio asset streaming @assets
@@ -60,9 +70,11 @@ x 2025-06-11 add: audio interface:
             other params. This way the user does not need to keep track of the 
             allocated memory and loaded assets.
 
+
 +v0.5.0 :: Update to zig v0.15.1 + deps release:minor
 x 2025-09-23 update: zig version 
 x 2025-09-23 add: loom.List(T)
+
 
 +v0.6.0 :: Input Update release:minor
     GOAL:   the goal of this update is to get complete feature parity with 
@@ -75,8 +87,8 @@ x 2025-09-25 update: input.mouse & input.keyboard @input
 x 2025-09-25 add: input.gamepad @input
     NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
 
-+v0.7.0 :: The Rendering Update relase:minor
 
++v0.7.0 :: The Rendering Update relase:minor
 x 2025-09-25 new: Camera system @display
     NOTE:   the game should be able to handle render contexts. Each camera 
             should have it's own RenderTexture, which it targets. Cameras 
@@ -85,27 +97,40 @@ x 2025-09-25 new: Camera system @display
 x 2025-09-25 add: shader support for vertex and fragment shaders
 x 2025-09-25 add: new camera management config
 
-+v0.8.0-v0.8.1 :: Dockerfile release:minor
 
++v0.8.0-v0.8.1 :: Dockerfile release:minor
 x 2025-10-14 new: dockerfile to test multi-platform building
 
-+--------------------------------[IN_PROGRESS]--------------------------------+
 
-+v0.9.0 :: Unit Tests
-
-x 2025-10-14 add: unit test the List(T) type
-x 2025-10-14 add: unit test the Array(T) type
++v0.9.0 :: Unit Tests relase:minor
+x 2025-10-14 add: unit test the List(T) type @test
+x 2025-10-14 add: unit test the Array(T) type @test
     NOTE:   this will require the removal of Array(T).fromTuple(), to 
             streamline the Array(T) processing.
-
-x 2025-10-15 add: unit test for the ECS
-
-fix: SharedPointer(T) and add unit tests
+x 2025-10-15 add: unit test for the ECS @test
+x 2025-10-15 fix: SharedPointer(T) and add unit tests @test
     NOTE:   this might come with a minor assets refactor as well.
 
 
++--------------------------------[IN_PROGRESS]--------------------------------+
+
+add: Scene unit tests @test
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
+add: eventloop.zig unit tests @test
+add: unit test ui.zig @test
+add: clay_rl_backend unit testing @test
+    NOTE:   this might require a refactor/update
+add: assets unit tests @test
+add: audio unit tests @test
+add: Camera unit tests @test
+    NOTE:   the display.zig file is due for a rework in +v0.10.0, so it isn't 
+            getting unit tested yet
+add: time unit tests @test
+add: window unit tests @test
 
+
++v0.10.0
 add: debug ui @tooling
+update: rework display.zig @display

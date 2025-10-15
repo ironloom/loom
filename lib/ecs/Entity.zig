@@ -63,13 +63,16 @@ pub fn deinit(self: *Self) void {
 
     if (self.allocated_id) {
         self.alloc.free(self.id);
-        self.id = "[INVALID - FREED]";
     }
+
+    self.* = undefined;
 }
 
 pub fn destroy(self: *Self) void {
+    const alloc = self.alloc;
+
     self.deinit();
-    self.alloc.destroy(self);
+    alloc.destroy(self);
 }
 
 pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {

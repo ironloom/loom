@@ -10,85 +10,14 @@ pub const clay = @import("zclay");
 pub const uuid = @import("uuid");
 pub const window = @import("window.zig");
 
-pub const arrays = @import("./types/Array.zig");
-pub const Array = arrays.Array;
-pub const array = arrays.array;
-pub const arrayAdvanced = arrays.arrayAdvanced;
-
-pub const lists = @import("./types/List.zig");
-pub const List = lists.List;
-
-test "Array(T) generic type" {
-    const expect = std.testing.expect;
-
-    var test_arr = try Array(u8).initFromTuple(.{ 1, 2, 3, 4 }, .{
-        .allocator = std.testing.allocator,
-    });
-    defer test_arr.deinit();
-
-    var list = List(u8).init(std.testing.allocator);
-    defer list.deinit();
-
-    try list.append(1);
-
-    var from_array_list = try Array(u8).fromList(list);
-    defer from_array_list.deinit();
-
-    var new_list = try test_arr.toList();
-    defer new_list.deinit();
-
-    try expect(new_list.len() == test_arr.len());
-
-    try expect(from_array_list.len() == 1);
-
-    var from_slice = try Array(u8).fromConstArray(&.{ 1, 2, 3, 4 }, std.testing.allocator);
-    defer from_slice.deinit();
-
-    try expect(from_slice.len() == 4);
-
-    try expect(test_arr.at(0) == 1);
-    try expect(test_arr.at(1) == 2);
-    try expect(test_arr.at(2) == 3);
-    try expect(test_arr.at(3) == 4);
-
-    try expect(test_arr.len() == 4);
-    try expect(test_arr.lastIndex() == 3);
-
-    try expect(test_arr.getFirst() == 1);
-    try expect(test_arr.getLast() == 4);
-
-    test_arr.set(3, 5);
-    try expect(test_arr.at(3) == 5);
-
-    try expect(test_arr.at(4) == null);
-
-    try expect(test_arr.reduce(usize, struct {
-        pub fn callback(accumulator: usize, current: u8) !usize {
-            return accumulator + current;
-        }
-    }.callback, 0) == 5 + 3 + 2 + 1);
-
-    var mapped = try test_arr.map(usize, struct {
-        pub fn callback(current: u8) !usize {
-            return current + 10;
-        }
-    }.callback);
-    defer mapped.deinit();
-
-    try expect(mapped.at(0) == 11);
-    try expect(mapped.at(1) == 12);
-    try expect(mapped.at(2) == 13);
-    try expect(mapped.at(3) == 15);
-}
+pub const types = @import("types/types.zig");
+pub const Array = types.Array;
+pub const List = types.List;
+pub const SharedPointer = types.SharedPointer;
 
 var seed: u64 = undefined;
 var xoshiro: std.Random.Xoshiro256 = .init(0);
 pub var random: std.Random = xoshiro.random();
-
-pub const SharedPtr = @import("./types/SharedPointer.zig").SharedPtr;
-pub fn sharedPtr(value: anytype) !*SharedPtr(@TypeOf(value)) {
-    return try SharedPtr(@TypeOf(value)).create(allocators.generic(), value);
-}
 
 pub const Vector2 = rl.Vector2;
 pub const Vector3 = rl.Vector3;
@@ -96,8 +25,9 @@ pub const Vector4 = rl.Vector4;
 pub const Rectangle = rl.Rectangle;
 pub const Color = rl.Color;
 
-pub const GlobalBehaviour = ecs.GlobalBehaviour;
-pub const Behaviour = ecs.Behaviour;
+pub const ecs = @import("ecs/ecs.zig");
+pub const GlobalBehaviour = ecs.Behaviour(Scene);
+pub const Behaviour = ecs.Behaviour(Entity);
 pub const Entity = ecs.Entity;
 pub const Prefab = ecs.Prefab;
 pub const Scene = eventloop.Scene;
@@ -116,13 +46,6 @@ pub const Keyframe = @import("builtin-components/animator/Keyframe.zig");
 pub const interpolation = @import("builtin-components/animator/interpolation.zig");
 
 pub const Camera = @import("Camera.zig");
-
-pub const ecs = struct {
-    pub const GlobalBehaviour = @import("./ecs/GlobalBehaviour.zig");
-    pub const Behaviour = @import("./ecs/Behaviour.zig");
-    pub const Entity = @import("./ecs/Entity.zig");
-    pub const Prefab = @import("./ecs/Prefab.zig");
-};
 
 pub const eventloop = @import("eventloop/eventloop.zig");
 pub const assets = @import("assets.zig");
@@ -511,7 +434,7 @@ pub const allocators = struct {
 // CoerceTo
 // --------------------------------------------------------------------------------------------------------------
 
-pub const coerceTo = @import("types/type_switcher.zig").coerceTo;
+pub const coerceTo = types.coerceTo;
 
 /// Shorthand for coerceTo
 pub inline fn tof32(value: anytype) f32 {

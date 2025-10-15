@@ -2,8 +2,7 @@ const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
 const loom = @import("./root.zig");
-const SharedPtr = loom.SharedPtr;
-const sharedPtr = loom.sharedPtr;
+const SharedPtr = loom.SharedPointer;
 
 const builtin = @import("builtin");
 
@@ -148,7 +147,7 @@ fn AssetCache(
 
             const parsed: T = try parsefn(data, filetype, rel_path, modifiers);
 
-            try hmap.put(HASH, try sharedPtr(parsed));
+            try hmap.put(HASH, try SharedPtr(T).create(loom.allocators.generic(), parsed));
         }
 
         pub fn release(rel_path: []const u8, modifiers: []const i32) void {

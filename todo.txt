@@ -85,7 +85,23 @@ x 2025-09-25 new: Camera system @display
 x 2025-09-25 add: shader support for vertex and fragment shaders
 x 2025-09-25 add: new camera management config
 
++v0.8.0-v0.8.1 :: Dockerfile release:minor
+
+x 2025-10-14 new: dockerfile to test multi-platform building
+
 +--------------------------------[IN_PROGRESS]--------------------------------+
+
++v0.9.0 :: Unit Tests
+
+x 2025-10-14 add: unit test the List(T) type
+x 2025-10-14 add: unit test the Array(T) type
+    NOTE:   this will require the removal of Array(T).fromTuple(), to 
+            streamline the Array(T) processing.
+
+x 2025-10-15 add: unit test for the ECS
+
+fix: SharedPointer(T) and add unit tests
+    NOTE:   this might come with a minor assets refactor as well.
 
 
 

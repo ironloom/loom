@@ -104,8 +104,20 @@ pub fn build(b: *std.Build) !void {
     });
     b.installArtifact(lib);
 
-    const lib_unit_tests = b.addTest(.{ .root_module = loom_mod });
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    const test_module = b.addModule("test", .{
+        .root_source_file = b.path("test/test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    test_module.addImport("loom", loom_mod);
+
+    const main_module_unit_test = b.addTest(.{
+        .name = "Main Module",
+        .root_module = test_module,
+    });
+    const run_lib_unit_tests = b.addRunArtifact(main_module_unit_test);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);

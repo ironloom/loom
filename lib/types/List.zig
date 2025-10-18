@@ -74,24 +74,30 @@ pub fn List(comptime T: type) type {
             return self.items()[real_index];
         }
 
+        /// Extend the list by 1 element. Allocates more memory as necessary.
+        /// Invalidates element pointers if additional memory is needed.
         pub fn append(self: *Self, item: T) !void {
             try self.arrlist.append(self.allocator, item);
         }
 
+        /// Append the slice of items to the list. Allocates more
+        /// memory as necessary.
+        /// Invalidates element pointers if additional memory is needed.
         pub fn appendSlice(self: *Self, new_items: []const T) !void {
-            for (new_items) |item| {
-                try self.arrlist.append(self.allocator, item);
-            }
+            try self.arrlist.appendSlice(self.allocator, new_items);
         }
 
+        /// Invalidates all element pointers.
         pub fn clearAndFree(self: *Self) void {
             self.arrlist.clearAndFree(self.allocator);
         }
 
+        /// Invalidates all element pointers.
         pub fn clearRetainingCapacity(self: *Self) void {
             self.arrlist.clearRetainingCapacity();
         }
 
+        /// Creates a copy of this List.
         pub fn clone(self: *Self) !Self {
             return Self{
                 .allocator = self.allocator,
@@ -126,6 +132,10 @@ pub fn List(comptime T: type) type {
             return if (self.len() > 0) self.items()[0] else null;
         }
 
+        /// Remove the element at index `i` from the list and return its value.
+        /// Invalidates pointers to the last element.
+        /// This operation is O(N).
+        /// Asserts that the index is in bounds.
         pub inline fn orderedRemove(self: *Self, index: usize) T {
             return self.arrlist.orderedRemove(index);
         }

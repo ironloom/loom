@@ -36,7 +36,7 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
 }
 
 pub fn Start(self: *Self) !void {
-    self.camera = try loom.ensureComponent(loom.activeScene().?.getCamera(self.camera_id));
+    self.camera = try loom.ensureComponent(loom.activeScene().?.getCameraById(self.camera_id));
 }
 
 pub fn Update(self: *Self, _: *loom.Entity) !void {

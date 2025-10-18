@@ -59,7 +59,7 @@ pub const fpsTarget = struct {
     }
 
     /// Get the currect FPS
-    pub const getCurrent = rl.getFPS();
+    pub const getCurrent = rl.getFPS;
 };
 
 pub const size = struct {

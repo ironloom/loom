@@ -21,7 +21,8 @@ test "init/fields" {
         myfield: usize = 0,
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expectEqualStrings(behaviour_instance.name, @typeName(MyBehaviour));
     try std.testing.expect(behaviour_instance.hash != 0);
@@ -38,13 +39,61 @@ test "init/attachEvents/empty" {
         pub fn End() void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
     try std.testing.expect(behaviour_instance.update != null);
     try std.testing.expect(behaviour_instance.tick != null);
     try std.testing.expect(behaviour_instance.end != null);
+}
+
+test "duplicate" {
+    const MyBehaviour = struct {
+        myfield: usize = 0,
+
+        pub fn Awake() void {}
+        pub fn Start() void {}
+        pub fn Update() void {}
+        pub fn Tick() void {}
+        pub fn End() void {}
+    };
+
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
+
+    try std.testing.expect(behaviour_instance.awake != null);
+    try std.testing.expect(behaviour_instance.start != null);
+    try std.testing.expect(behaviour_instance.update != null);
+    try std.testing.expect(behaviour_instance.tick != null);
+    try std.testing.expect(behaviour_instance.end != null);
+
+    var my_duplicate = try behaviour_instance.duplicate();
+    defer my_duplicate.deinit();
+
+    try std.testing.expect(@intFromPtr(my_duplicate.cache) != @intFromPtr(behaviour_instance.cache));
+    try std.testing.expectEqual(behaviour_instance.hash, my_duplicate.hash);
+
+    try std.testing.expectEqual(behaviour_instance.awake, my_duplicate.awake);
+    try std.testing.expectEqual(behaviour_instance.start, my_duplicate.start);
+    try std.testing.expectEqual(behaviour_instance.update, my_duplicate.update);
+    try std.testing.expectEqual(behaviour_instance.tick, my_duplicate.tick);
+    try std.testing.expectEqual(behaviour_instance.end, my_duplicate.end);
+
+    const original_cache_value = behaviour_instance.castBack(MyBehaviour);
+    try std.testing.expect(original_cache_value != null);
+
+    const cache_value = my_duplicate.castBack(MyBehaviour);
+    try std.testing.expect(cache_value != null);
+
+    try std.testing.expectEqual(0, original_cache_value.?.myfield);
+    try std.testing.expectEqual(0, cache_value.?.myfield);
+
+    cache_value.?.myfield += 1;
+
+    try std.testing.expectEqual(0, original_cache_value.?.myfield);
+    try std.testing.expectEqual(1, cache_value.?.myfield);
 }
 
 test "init/attachEvents/self_only" {
@@ -60,7 +109,8 @@ test "init/attachEvents/self_only" {
         pub fn End(_: *Self) void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -82,7 +132,8 @@ test "init/attachEvents/target_only" {
         pub fn End(_: *TestType) void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -104,7 +155,8 @@ test "init/attachEvents/self_target" {
         pub fn End(_: *Self, _: *TestType) void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -126,7 +178,8 @@ test "init/attachEvents/target_self" {
         pub fn End(_: *TestType, _: *Self) void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -146,7 +199,8 @@ test "init/attachEvents/empty_error" {
         pub fn End() !void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -168,7 +222,8 @@ test "init/attachEvents/self_only_error" {
         pub fn End(_: *Self) !void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -190,7 +245,8 @@ test "init/attachEvents/target_only_error" {
         pub fn End(_: *TestType) !void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -212,7 +268,8 @@ test "init/attachEvents/self_target_error" {
         pub fn End(_: *Self, _: *TestType) !void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -234,7 +291,8 @@ test "init/attachEvents/target_self_error" {
         pub fn End(_: *TestType, _: *Self) !void {}
     };
 
-    const behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
     try std.testing.expect(behaviour_instance.start != null);
@@ -272,6 +330,7 @@ test "callSafe" {
 
     var target = TestType.init();
     var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(target.counter == 0);
 
@@ -306,6 +365,7 @@ test "callSafe - initalised" {
 
     var target = TestType.init();
     var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(!behaviour_instance.initalised);
 
@@ -346,6 +406,7 @@ test "isType" {
     };
 
     var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.isType(MyBehaviour));
     try std.testing.expect(!behaviour_instance.isType(NotMyBehaviour));

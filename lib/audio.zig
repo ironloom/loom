@@ -18,6 +18,8 @@ var audio_cache: std.StringHashMap(Cached) = undefined;
 var is_alive = false;
 
 pub fn init() void {
+    if (is_alive) return;
+
     audio_cache = .init(loom.allocators.generic());
     is_alive = true;
 }
@@ -25,6 +27,7 @@ pub fn init() void {
 pub fn deinit() void {
     if (!is_alive) return;
 
+    is_alive = false;
     audio_cache.deinit();
 }
 
@@ -49,7 +52,7 @@ pub fn update() void {
 pub fn load(path: []const u8) !void {
     if (!is_alive) return;
 
-    const cached = assets.sound.get(path, .{}) orelse return;
+    const cached = assets.sound.get(path, &.{}) orelse return;
 
     try audio_cache.put(path, Cached{
         .sound = cached,

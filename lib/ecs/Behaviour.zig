@@ -1,6 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const c = @cImport({
+    @cInclude("string.h");
+    @cInclude("stdlib.h");
+});
+
 pub fn Behaviour(comptime T: type) type {
     return struct {
         const FnType = ?(*const fn (self: *anyopaque, target: *T) anyerror!void);
@@ -17,6 +22,7 @@ pub fn Behaviour(comptime T: type) type {
         const Self = @This();
 
         cache: *anyopaque,
+        cache_size: usize = 0,
         name: []const u8 = "UNNAMED_BEHAVIOUR",
         hash: u64,
         initalised: bool = false,
@@ -37,6 +43,8 @@ pub fn Behaviour(comptime T: type) type {
 
             var self = Self{
                 .cache = @ptrCast(@alignCast(ptr)),
+                .cache_size = @sizeOf(K),
+
                 .name = @typeName(K),
                 .hash = comptime calculateHash(K),
             };
@@ -48,6 +56,27 @@ pub fn Behaviour(comptime T: type) type {
         pub fn deinit(self: *Self) void {
             std.c.free(self.cache);
             self.* = undefined;
+        }
+
+        pub fn duplicate(self: Self) !Self {
+            const c_ptr = std.c.malloc(self.cache_size) orelse return Error.OutOfMemory;
+            _ = c.memccpy(c_ptr, self.cache, @intCast(self.cache_size), @intCast(1));
+
+            var new = Self{
+                .cache = c_ptr,
+                .cache_size = self.cache_size,
+
+                .name = self.name,
+                .hash = self.hash,
+            };
+
+            new.awake = self.awake;
+            new.start = self.start;
+            new.update = self.update;
+            new.tick = self.tick;
+            new.end = self.end;
+
+            return new;
         }
 
         pub fn add(self: *Self, event: Events, callback: FnType) void {

@@ -230,6 +230,7 @@ fn projectLoop(_: void) void {
     }
 }
 
+
 pub fn scene(id: []const u8) *const fn (void) void {
     eventloop.addScene(Scene.init(allocators.generic(), id)) catch @panic("Scene creation failed");
 
@@ -260,11 +261,9 @@ pub const CameraConfig = struct { id: []const u8, options: Camera.Options };
 pub fn cameras(camera_configs: []const CameraConfig) void {
     const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
 
-    for (camera_configs) |config| {
-        selected_scene.addDefaultCamera(config) catch {
-            std.log.err("failed to add camera: {s}", .{config.id});
-        };
-    }
+    selected_scene.useDefaultCameras(camera_configs) catch {
+        std.log.err("failed to add cameras to scene: {s}", .{selected_scene.id});
+    };
 }
 
 pub const prefab = Prefab.init;

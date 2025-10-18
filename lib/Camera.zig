@@ -102,6 +102,8 @@ pub fn init(id: []const u8, options: Options) !Self {
 pub fn deinit(self: *Self) void {
     self.render_texture.unload();
     if (self.shader) |self_shader| lm.assets.shader.releasePtr(self_shader);
+
+    self.* = undefined;
 }
 
 pub fn begin(self: *Self) !void {

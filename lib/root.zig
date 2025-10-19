@@ -5,9 +5,19 @@ const Allocator = @import("std").mem.Allocator;
 // Types and Basic Utilities
 // --------------------------------------------------------------------------------------------------------------
 
-pub const rl = @import("raylib");
-pub const clay = @import("zclay");
-pub const uuid = @import("uuid");
+const rl = @import("raylib");
+const clay = @import("zclay");
+const uuid = @import("uuid");
+
+pub const deps = if (builtin.is_test)
+    struct {}
+else
+    struct {
+        pub const rl = @import("raylib");
+        pub const clay = @import("zclay");
+        pub const uuid = @import("uuid");
+    };
+
 pub const window = @import("window.zig");
 
 pub const types = @import("types/types.zig");
@@ -130,7 +140,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     };
 
     display.init();
-    ui.init() catch @panic("UI INIT FAILED");
+    ui.init(allocators.arena()) catch @panic("UI INIT FAILED");
     eventloop.init(allocators.arena());
 
     std.posix.getrandom(std.mem.asBytes(&seed)) catch {
@@ -230,7 +240,6 @@ fn projectLoop(_: void) void {
     }
 }
 
-
 pub fn scene(id: []const u8) *const fn (void) void {
     eventloop.addScene(Scene.init(allocators.generic(), id)) catch @panic("Scene creation failed");
 
@@ -314,7 +323,7 @@ pub inline fn activeScene() ?*Scene {
 }
 
 pub fn getEntity(target: EntityTargetType) ?*Entity {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = eventloop.active_scene orelse return null;
 
     return switch (target) {
         .id => |id| ascene.getEntityById(id),

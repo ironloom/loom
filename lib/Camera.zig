@@ -181,7 +181,7 @@ pub fn useShader(self: *Self, shader_path: ?[]const u8) void {
         lm.assets.shader.releasePtr(current_shader);
 
     self.shader = if (shader_path) |sp|
-        try lm.assets.shader.get(sp, .{})
+        lm.assets.shader.get(sp, &.{})
     else
         null;
 }

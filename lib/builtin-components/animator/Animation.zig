@@ -103,16 +103,16 @@ fn makeKeySliceAndSort(self: *Self) !void {
     self.sortKeys();
 }
 
-pub fn chain(self: *Self, percent: f32, keyframe: shared.Keyframe) *Self {
+pub fn chain(self: *Self, percent: i32, keyframe: shared.Keyframe) *Self {
     const self_keyframes = &(self.keyframes orelse Blk: {
-        self.keyframes = std.AutoHashMap(f32, shared.Keyframe).init(self.alloc);
+        self.keyframes = std.AutoHashMap(i32, shared.Keyframe).init(self.alloc);
         break :Blk self.keyframes.?;
     });
 
     if (self_keyframes.getPtr(percent)) |queried_keyframe| {
         std.log.warn("Overriding existing keyframe at percent {d:.2}", .{percent});
         queried_keyframe.* = keyframe;
-        return;
+        return self;
     }
 
     const array_list = self.makeKeysArrayList();

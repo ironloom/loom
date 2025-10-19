@@ -2,16 +2,18 @@ const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
 const loom = @import("./root.zig");
+const rl = @import("raylib");
+
 const SharedPtr = loom.SharedPointer;
 
 const builtin = @import("builtin");
 
-const Image = loom.rl.Image;
-const Texture = loom.rl.Texture;
-const Wave = loom.rl.Wave;
-const Sound = loom.rl.Sound;
-const Font = loom.rl.Font;
-const Shader = loom.rl.Shader;
+const Image = rl.Image;
+const Texture = rl.Texture;
+const Wave = rl.Wave;
+const Sound = rl.Sound;
+const Font = rl.Font;
+const Shader = rl.Shader;
 
 pub const files = struct {
     pub const paths = struct {
@@ -228,15 +230,15 @@ pub const image = AssetCache(
             const width = if (modifiers.len > 0) @max(1, modifiers[0]) else 1;
             const height = if (modifiers.len > 1) @max(1, modifiers[1]) else 1;
 
-            var img = try loom.rl.loadImageFromMemory(str, data);
-            loom.rl.imageResizeNN(&img, width, height);
+            var img = try rl.loadImageFromMemory(str, data);
+            rl.imageResizeNN(&img, width, height);
 
             return img;
         }
     }.callback,
     struct {
         pub fn callback(data: Image) void {
-            loom.rl.unloadImage(data);
+            rl.unloadImage(data);
         }
     }.callback,
 );
@@ -248,21 +250,21 @@ pub const texture = AssetCache(
             const str: [:0]const u8 = loom.allocators.generic().dupeZ(u8, filetype) catch ".png";
             defer loom.allocators.generic().free(str);
 
-            var img = try loom.rl.loadImageFromMemory(str, data);
-            defer loom.rl.unloadImage(img);
+            var img = try rl.loadImageFromMemory(str, data);
+            defer rl.unloadImage(img);
 
             const width = if (modifiers.len > 0) @max(1, modifiers[0]) else 1;
             const height = if (modifiers.len > 1) @max(1, modifiers[1]) else 1;
 
-            loom.rl.imageResizeNN(&img, width, height);
+            rl.imageResizeNN(&img, width, height);
 
-            const txtr = try loom.rl.loadTextureFromImage(img);
+            const txtr = try rl.loadTextureFromImage(img);
             return txtr;
         }
     }.callback,
     struct {
         pub fn callback(data: Texture) void {
-            loom.rl.unloadTexture(data);
+            rl.unloadTexture(data);
         }
     }.callback,
 );
@@ -284,13 +286,13 @@ pub const font = AssetCache(
 
             const font_chars: []const i32 = if (fchars.len == 0) &font_chars_base else fchars;
 
-            const fnt = try loom.rl.loadFontFromMemory(str, data, loom.toi32(font_chars.len), font_chars);
+            const fnt = try rl.loadFontFromMemory(str, data, loom.toi32(font_chars.len), font_chars);
             return fnt;
         }
     }.callback,
     struct {
         pub fn callback(data: Font) void {
-            loom.rl.unloadFont(data);
+            rl.unloadFont(data);
         }
     }.callback,
 );
@@ -302,15 +304,15 @@ pub const sound = AssetCache(
             const str: [:0]const u8 = try loom.allocators.generic().dupeZ(u8, filetype);
             defer loom.allocators.generic().free(str);
 
-            const wave = try loom.rl.loadWaveFromMemory(str, data);
-            defer loom.rl.unloadWave(wave);
+            const wave = try rl.loadWaveFromMemory(str, data);
+            defer rl.unloadWave(wave);
 
-            return loom.rl.loadSoundFromWave(wave);
+            return rl.loadSoundFromWave(wave);
         }
     }.callback,
     struct {
         pub fn callback(data: Sound) void {
-            loom.rl.unloadSound(data);
+            rl.unloadSound(data);
         }
     }.callback,
 );
@@ -353,12 +355,12 @@ pub const shader = AssetCache(
                 vertex_shader_c_data = try loom.allocators.generic().dupeZ(u8, data);
             }
 
-            return try loom.rl.loadShaderFromMemory(vertex_shader_c_data, fragment_shader_c_data);
+            return try rl.loadShaderFromMemory(vertex_shader_c_data, fragment_shader_c_data);
         }
     }.callback,
     struct {
         pub fn callback(data: Shader) void {
-            loom.rl.unloadShader(data);
+            rl.unloadShader(data);
         }
     }.callback,
 );

@@ -386,7 +386,7 @@ pub fn useDefaultCameras(self: *Self, config: []const lm.CameraConfig) !void {
 }
 
 pub fn addCamera(self: *Self, id: []const u8, options: Camera.Options) !*Camera {
-    const ptr = try lm.allocators.generic().create(Camera);
+    const ptr = try self.alloc.create(Camera);
     ptr.* = try .init(id, options);
 
     try self.cameras.append(ptr);
@@ -409,29 +409,22 @@ pub fn getCameraByUuid(self: *Self, uuid: u128) ?*Camera {
     return self.getCamera(uuid, uuidEqls(Camera));
 }
 
-pub fn removeCamera(self: *Self, value: anytype, byCriteria: fn (Camera, @TypeOf(value)) bool) void {
+pub fn removeCamera(self: *Self, value: anytype, byCriteria: fn (@TypeOf(value), *Camera) bool) void {
     for (self.cameras.items(), 0..) |camera, index| {
-        if (!byCriteria(camera, value)) continue;
+        if (!byCriteria(value, camera)) continue;
 
-        self.cameras.orderedRemove(index);
+        _ = self.cameras.orderedRemove(index);
         camera.deinit();
-        lm.allocators.generic().destroy(camera);
+        self.alloc.destroy(camera);
+
         return;
     }
 }
 
 pub fn removeCameraById(self: *Self, id: []const u8) void {
-    self.removeCamera(id, struct {
-        pub fn callback(camera: Camera, identifier: []const u8) !void {
-            return std.mem.eql(u8, camera.id, identifier);
-        }
-    }.callback);
+    self.removeCamera(id, idEqls(Camera));
 }
 
 pub fn removeCameraByUuid(self: *Self, uuid_: u128) void {
-    self.removeCamera(uuid_, struct {
-        pub fn callback(camera: Camera, uuid__: []const u8) !void {
-            return camera.uuid == uuid__;
-        }
-    }.callback);
+    self.removeCamera(uuid_, uuidEqls(Camera));
 }

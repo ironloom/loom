@@ -1,6 +1,8 @@
 const std = @import("std");
 const loom = @import("root.zig");
-const rl = loom.rl;
+const rl = @import("raylib");
+
+const clay = @import("zclay");
 
 var _size = loom.Vec2(860, 480);
 var _temp_size = loom.Vec2(860, 480);
@@ -40,7 +42,7 @@ pub const shouldClose = rl.windowShouldClose;
 
 pub fn toggleDebugMode() void {
     use_debug_mode = !use_debug_mode;
-    loom.clay.setDebugModeEnabled(use_debug_mode);
+    clay.setDebugModeEnabled(use_debug_mode);
 }
 
 /// FPS: frames per second

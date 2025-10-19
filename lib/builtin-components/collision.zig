@@ -1,6 +1,6 @@
 const std = @import("std");
 const loom = @import("../root.zig");
-const rl = loom.rl;
+const rl = @import("raylib");
 
 const Transform = @import("./Transform.zig");
 const Vector2 = loom.Vector2;

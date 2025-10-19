@@ -134,3 +134,6 @@ add: window unit tests @test
 +v0.10.0
 add: debug ui @tooling
 update: rework display.zig @display
+
++v0.11.0 
+add: custom Vector2(T) & Vector3(T) types

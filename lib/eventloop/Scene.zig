@@ -81,8 +81,7 @@ pub fn load(self: *Self) !void {
     defer self.is_active = true;
 
     for (self.default_cameras.items()) |camera_config| {
-        const camera = try self.addCamera(camera_config.id, camera_config.options);
-        std.log.debug("Created camera {s} with UUID {}", .{ camera.id, camera.uuid });
+        _ = try self.addCamera(camera_config.id, camera_config.options);
     }
 
     for (self.prefabs.items()) |prefabs| {
@@ -200,6 +199,7 @@ pub fn execute(self: *Self) void {
 
     for (self.new_entities.items()) |entity| {
         if (entity.remove_next_frame) continue;
+
         self.entities.append(entity) catch |err| {
             std.log.err("failed to add entity, error: {any}", .{err});
             continue;

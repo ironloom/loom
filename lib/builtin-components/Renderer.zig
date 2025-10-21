@@ -72,7 +72,10 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
         .texture = assets.texture.get(
             self.img_path,
             &.{ 1, 1 },
-        ),
+        ) orelse blk: {
+            std.log.err("texture failed to load: {s}", .{self.img_path});
+            break :blk null;
+        },
     });
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
 }

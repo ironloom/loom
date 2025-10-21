@@ -4,7 +4,7 @@ const Allocator = @import("std").mem.Allocator;
 const loom = @import("./root.zig");
 const rl = @import("raylib");
 
-const SharedPtr = loom.SharedPointer;
+const SharedPointer = loom.SharedPointer;
 
 const builtin = @import("builtin");
 
@@ -81,7 +81,7 @@ fn AssetCache(
     comptime releasefn: *const fn (data: T) void,
 ) type {
     return struct {
-        const HashMapType = std.AutoHashMap(u64, *SharedPtr(T));
+        const HashMapType = std.AutoHashMap(u64, *SharedPointer(T));
         var hash_map: ?HashMapType = null;
 
         fn hashMap() *HashMapType {
@@ -155,24 +155,24 @@ fn AssetCache(
 
             const parsed: T = try parsefn(data, filetype, rel_path, modifiers);
 
-            try hmap.put(HASH, try SharedPtr(T).create(loom.allocators.generic(), parsed));
+            try hmap.put(HASH, try SharedPointer(T).create(loom.allocators.generic(), parsed));
         }
 
         pub fn release(rel_path: []const u8, modifiers: []const i32) void {
             const path_hash = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
             const hmap = hashMap();
 
-            const sptr = hmap.get(path_hash) orelse return;
+            const shared_pointer = hmap.get(path_hash) orelse return;
 
-            if (sptr.ref_count > 0) {
-                sptr.removeRef();
+            shared_pointer.removeRef();
+
+            if (shared_pointer.ref_count > 0)
                 return;
-            }
 
-            if (sptr.value) |v|
+            if (shared_pointer.value) |v|
                 releasefn(v);
 
-            sptr.destroy() catch unreachable;
+            shared_pointer.destroy() catch unreachable;
             _ = hmap.remove(path_hash);
         }
 
@@ -194,8 +194,9 @@ fn AssetCache(
             const shared_pointer = entry.value_ptr.*;
             const entry_hash = entry.key_ptr.*;
 
+            shared_pointer.removeRef();
+
             if (shared_pointer.ref_count > 0) {
-                shared_pointer.removeRef();
                 return;
             }
 

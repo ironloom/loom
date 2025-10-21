@@ -431,4 +431,38 @@ test "execute" {
     // this test is only meant to test the dispatch of the update event,
     // since tick is reliant on rl data.
 
+    const MyComponent = struct {
+        const Self = @This();
+
+        var counter: usize = 0;
+
+        pub fn Update() void {
+            counter += 1;
+        }
+    };
+
+    const my_prefab = try lm.Prefab.init("my_prefab", .{
+        MyComponent{},
+    });
+
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try my_scene.addPrefab(my_prefab);
+
+    try my_scene.useGlobalBehaviours(.{
+        MyComponent{},
+    });
+
+    try my_scene.load();
+    defer my_scene.unload();
+
+    try expectEqual(1, my_scene.entities.len());
+    try expectEqual(1, my_scene.behaviours.len());
+
+    try expectEqual(0, MyComponent.counter);
+
+    my_scene.execute();
+
+    try expectEqual(2, MyComponent.counter);
 }

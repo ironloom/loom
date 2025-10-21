@@ -110,11 +110,10 @@ x 2025-10-14 add: unit test the Array(T) type @test
 x 2025-10-15 add: unit test for the ECS @test
 x 2025-10-15 fix: SharedPointer(T) and add unit tests @test
     NOTE:   this might come with a minor assets refactor as well.
-
+x 2025-10-21 add: Scene unit tests @test
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
-add: Scene unit tests @test
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
@@ -138,3 +137,6 @@ update: rework display.zig @display
 +v0.11.0 
 add: custom Vector2(T) & Vector3(T) types
 add: user setting for tick rate
+
++unknown-update
+rework: asset handling

@@ -40,7 +40,10 @@ pub const GlobalBehaviour = ecs.Behaviour(Scene);
 pub const Behaviour = ecs.Behaviour(Entity);
 pub const Entity = ecs.Entity;
 pub const Prefab = ecs.Prefab;
+
+pub const eventloop = @import("eventloop/eventloop.zig");
 pub const Scene = eventloop.Scene;
+pub const SceneController = eventloop.SceneController;
 
 pub const UUIDv7 = uuid.v7.new;
 
@@ -57,7 +60,6 @@ pub const interpolation = @import("builtin-components/animator/interpolation.zig
 
 pub const Camera = @import("Camera.zig");
 
-pub const eventloop = @import("eventloop/eventloop.zig");
 pub const assets = @import("assets.zig");
 pub const audio = @import("audio.zig");
 pub const display = @import("display.zig");
@@ -70,10 +72,13 @@ pub const mouse = input.mouse;
 pub const gamepad = input.gamepad;
 
 pub const useAssetPaths = assets.files.paths.use;
-var running = true;
+const program = struct {
+    var dispatcher: SceneController = undefined;
+    var running: bool = true;
+};
 
 pub fn quit() void {
-    running = false;
+    program.running = false;
 }
 
 // Creating the project
@@ -141,7 +146,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
 
     display.init();
     ui.init(allocators.arena()) catch @panic("UI INIT FAILED");
-    eventloop.init(allocators.arena());
+    program.dispatcher = .init(allocators.arena());
 
     std.posix.getrandom(std.mem.asBytes(&seed)) catch {
         seed = coerceTo(u64, rl.getTime()).?;
@@ -149,15 +154,15 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
-    return projectLoop;
+    return projectLoopAndDeinit;
 }
 
-fn projectLoop(_: void) void {
-    eventloop.setActive("default") catch {
+fn projectLoopAndDeinit(_: void) void {
+    program.dispatcher.setActive("default") catch {
         std.log.info("no default scene", .{});
     };
 
-    while (!window.shouldClose() and running) {
+    while (!window.shouldClose() and program.running) {
         if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
             window.toggleDebugMode();
 
@@ -179,10 +184,7 @@ fn projectLoop(_: void) void {
 
         clay.beginLayout();
 
-        eventloop.execute();
-        defer eventloop.loadNext() catch {
-            std.log.debug("failed to load next scene!", .{});
-        };
+        program.dispatcher.execute();
 
         audio.update();
 
@@ -218,7 +220,7 @@ fn projectLoop(_: void) void {
             rl.drawFPS(10, 10);
     }
 
-    eventloop.deinit();
+    program.dispatcher.deinit();
     ui.deinit();
     display.deinit();
 
@@ -237,17 +239,11 @@ fn projectLoop(_: void) void {
 }
 
 pub fn scene(id: []const u8) *const fn (void) void {
-    eventloop.addScene(Scene.init(allocators.arena(), id)) catch @panic("Scene creation failed");
-
-    return struct {
-        pub fn callback(_: void) void {
-            eventloop.close();
-        }
-    }.callback;
+    return program.dispatcher.addSceneOpen(Scene.init(allocators.arena(), id)) catch @panic("Scene creation failed");
 }
 
 pub fn prefabs(prefab_array: []const Prefab) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.addPrefabs(prefab_array) catch {
         std.log.err("couldn't add prefabs", .{});
@@ -255,7 +251,7 @@ pub fn prefabs(prefab_array: []const Prefab) void {
 }
 
 pub fn globalBehaviours(behaviours: anytype) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.useGlobalBehaviours(behaviours) catch |err| {
         std.log.err("failed to apply global behaviours for scene: \"{s}\". error: {any}", .{ selected_scene.id, err });
@@ -264,7 +260,7 @@ pub fn globalBehaviours(behaviours: anytype) void {
 
 pub const CameraConfig = struct { id: []const u8, options: Camera.Options };
 pub fn cameras(camera_configs: []const CameraConfig) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.useDefaultCameras(camera_configs) catch {
         std.log.err("failed to add cameras to scene: {s}", .{selected_scene.id});
@@ -272,7 +268,7 @@ pub fn cameras(camera_configs: []const CameraConfig) void {
 }
 
 pub fn useMainCamera() void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.default_cameras.append(.{
         .id = "main",
@@ -301,7 +297,7 @@ const SummonUnion = union(SummonTag) {
 };
 
 pub fn summon(entities_prefabs: []const SummonUnion) !void {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = program.dispatcher.active_scene orelse return;
 
     for (entities_prefabs) |value| {
         switch (value) {
@@ -329,11 +325,11 @@ pub fn makeEntityI(id: []const u8, index: u32, components: anytype) !*Entity {
 }
 
 pub inline fn activeScene() ?*Scene {
-    return eventloop.active_scene;
+    return program.dispatcher.active_scene;
 }
 
 pub fn getEntity(target: EntityTargetType) ?*Entity {
-    const ascene = eventloop.active_scene orelse return null;
+    const ascene = program.dispatcher.active_scene orelse return null;
 
     return switch (target) {
         .id => |id| ascene.getEntityById(id),
@@ -342,8 +338,10 @@ pub fn getEntity(target: EntityTargetType) ?*Entity {
     };
 }
 
-/// The scene will be loaded after the currect eventloop cycle is executed.
-pub const loadScene = eventloop.setActive;
+/// The scene will be loaded after the currect dispatcher cycle is executed.
+pub inline fn loadScene(scene_id: []const u8) !void {
+    try program.dispatcher.setActive(scene_id);
+}
 
 const EntityTargetTag = enum {
     id,
@@ -372,7 +370,7 @@ const EntityTargetType = union(EntityTargetTag) {
 };
 
 pub fn removeEntity(target: EntityTargetType) void {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = program.dispatcher.active_scene orelse return;
     switch (target) {
         .id => |id| ascene.removeEntityById(id),
         .uuid => |target_uuid| ascene.removeEntityByUuid(target_uuid),

@@ -111,13 +111,13 @@ x 2025-10-15 add: unit test for the ECS @test
 x 2025-10-15 fix: SharedPointer(T) and add unit tests @test
     NOTE:   this might come with a minor assets refactor as well.
 x 2025-10-21 add: Scene unit tests @test
+x 2025-10-21 add: SceneController.zig unit tests @test
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
-add: eventloop.zig unit tests @test
 add: unit test ui.zig @test
 add: clay_rl_backend unit testing @test
     NOTE:   this might require a refactor/update

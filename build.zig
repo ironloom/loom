@@ -114,9 +114,10 @@ pub fn build(b: *std.Build) !void {
     test_module.addImport("loom", loom_mod);
 
     const main_module_unit_test = b.addTest(.{
-        .name = "Main Module",
+        .name = "loom unit tests",
         .root_module = test_module,
     });
+
     const run_lib_unit_tests = b.addRunArtifact(main_module_unit_test);
 
     const test_step = b.step("test", "Run unit tests");

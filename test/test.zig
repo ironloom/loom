@@ -1,7 +1,8 @@
-const refAllDeclsRecursive = @import("std").testing.refAllDeclsRecursive;
+const std = @import("std");
+const testing = std.testing;
 
 test {
-    refAllDeclsRecursive(@import("loom"));
+    testing.refAllDeclsRecursive(@import("loom"));
 
     _ = @import("types/types.zig");
     _ = @import("ecs/ecs.zig");

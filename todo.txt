@@ -137,3 +137,4 @@ update: rework display.zig @display
 
 +v0.11.0 
 add: custom Vector2(T) & Vector3(T) types
+add: user setting for tick rate

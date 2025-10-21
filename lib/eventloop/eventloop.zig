@@ -70,6 +70,7 @@ pub fn loadNext() !void {
     const nscene = next_scene orelse return;
     if (active_scene) |ascene| ascene.unload();
 
+    nscene.is_active = false;
     active_scene = nscene;
 
     _ = if (loom.allocators.AI_scene.interface) |*int| int.reset(.free_all);

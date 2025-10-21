@@ -270,9 +270,165 @@ test "useDefaultCameras" {
         },
     });
 
+    const capacity = my_scene.default_cameras.capacity();
     try expectEqual(1, my_scene.default_cameras.len());
 
     try my_scene.useDefaultCameras(&.{});
 
     try expectEqual(0, my_scene.default_cameras.len());
+    try expectEqual(capacity, my_scene.default_cameras.capacity());
+
+    my_scene.is_active = true;
+
+    try expectError(error.SceneActive, my_scene.useDefaultCameras(&.{}));
+
+    my_scene.is_active = false;
+}
+
+// TODO: figure out a way to test cameras, since raylib functionality cannot be tested
+
+test "load" {
+    const MyComponent = struct {
+        const Self = @This();
+
+        counter: usize = 0,
+
+        pub fn Awake(self: *Self) void {
+            self.counter += 1;
+        }
+
+        pub fn Start(self: *Self) void {
+            self.counter += 1;
+        }
+    };
+
+    const GlobalAdder = struct {
+        const Self = @This();
+
+        pub fn Awake(scene: *Scene) !void {
+            try scene.newEntity("my_entity", .{});
+        }
+    };
+
+    const my_prefab = try lm.Prefab.init("my_prefab", .{
+        MyComponent{},
+    });
+
+    {
+        var my_scene: Scene = .init(allocator, "my_scene");
+        defer my_scene.deinit();
+
+        try my_scene.addPrefab(my_prefab);
+
+        try my_scene.useGlobalBehaviours(.{
+            MyComponent{},
+        });
+
+        try expectEqual(0, my_scene.entities.len());
+        try expectEqual(0, my_scene.behaviours.len());
+        try expectEqual(1, my_scene.prefabs.len());
+        try expectEqual(1, my_scene.default_behaviours.len());
+
+        try my_scene.load();
+
+        try expectEqual(1, my_scene.entities.len());
+        try expectEqual(1, my_scene.behaviours.len());
+        try expectEqual(1, my_scene.prefabs.len());
+        try expectEqual(1, my_scene.default_behaviours.len());
+    }
+    {
+        var my_scene: Scene = .init(allocator, "my_scene");
+        defer my_scene.deinit();
+
+        try my_scene.useGlobalBehaviours(.{
+            GlobalAdder{},
+        });
+
+        try expectEqual(0, my_scene.entities.len());
+        try expectEqual(0, my_scene.new_entities.len());
+        try expectEqual(0, my_scene.behaviours.len());
+        try expectEqual(1, my_scene.default_behaviours.len());
+
+        try my_scene.load();
+
+        try expectEqual(0, my_scene.entities.len());
+        try expectEqual(1, my_scene.new_entities.len());
+        try expectEqual(1, my_scene.behaviours.len());
+        try expectEqual(1, my_scene.default_behaviours.len());
+
+        my_scene.execute();
+
+        try expectEqual(1, my_scene.entities.len());
+        try expectEqual(0, my_scene.new_entities.len());
+    }
+}
+
+test "unload" {
+    const MyComponent = struct {
+        const Self = @This();
+
+        counter: usize = 0,
+
+        pub fn Awake(self: *Self) void {
+            self.counter += 1;
+        }
+
+        pub fn Start(self: *Self) void {
+            self.counter += 1;
+        }
+    };
+
+    const GlobalAdder = struct {
+        const Self = @This();
+
+        pub fn Awake(scene: *Scene) !void {
+            try scene.newEntity("my_entity", .{});
+        }
+    };
+
+    const my_prefab = try lm.Prefab.init("my_prefab", .{
+        MyComponent{},
+    });
+
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try my_scene.addPrefab(my_prefab);
+
+    try my_scene.useGlobalBehaviours(.{
+        GlobalAdder{},
+    });
+
+    try expectEqual(1, my_scene.prefabs.len());
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+    try expectEqual(0, my_scene.behaviours.len());
+    try expectEqual(1, my_scene.default_behaviours.len());
+
+    try my_scene.load();
+
+    try expectEqual(1, my_scene.entities.len());
+    try expectEqual(1, my_scene.new_entities.len());
+    try expectEqual(1, my_scene.behaviours.len());
+    try expectEqual(1, my_scene.default_behaviours.len());
+
+    my_scene.execute();
+
+    try expectEqual(2, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+
+    my_scene.unload();
+
+    try expectEqual(1, my_scene.prefabs.len());
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+    try expectEqual(0, my_scene.behaviours.len());
+    try expectEqual(1, my_scene.default_behaviours.len());
+}
+
+test "execute" {
+    // since execute()'s other functionality has already been tested,
+    // this test is only meant to test the dispatch of the update event,
+    // since tick is reliant on rl data.
+
 }

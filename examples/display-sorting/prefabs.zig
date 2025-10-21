@@ -1,14 +1,14 @@
 const std = @import("std");
-const loom = @import("loom");
+const lm = @import("loom");
 
 const Move = @import("components/Move.zig");
 
-pub fn MovingBox(comptime position: loom.Vector2) !loom.Prefab {
-    return try loom.prefab("spawner", .{
-        loom.Transform{
-            .position = loom.vec2ToVec3(position),
+pub fn MovingBox(comptime position: lm.Vector2) !lm.Prefab {
+    return try lm.prefab("moving", .{
+        lm.Transform{
+            .position = lm.vec2ToVec3(position),
         },
-        loom.Renderer.init(.{
+        lm.Renderer.init(.{
             .img_path = "./resources/loom_logo_43x16.png",
             .fill_color = .black,
         }),
@@ -16,14 +16,23 @@ pub fn MovingBox(comptime position: loom.Vector2) !loom.Prefab {
     });
 }
 
-pub fn StillBox(comptime position: loom.Vector2) !loom.Prefab {
-    return try loom.prefab("spawned", .{
-        loom.Transform{
-            .position = loom.vec2ToVec3(position),
+pub fn StillBox(comptime position: lm.Vector2) !lm.Prefab {
+    return try lm.prefab("normal", .{
+        lm.Transform{
+            .position = lm.vec2ToVec3(position),
         },
-        loom.Renderer.init(.{
+        lm.Renderer.init(.{
             .img_path = "./resources/loom_logo_43x16.png",
             .fill_color = .lime,
         }),
+    });
+}
+
+pub fn CameraAnchor(comptime position: lm.Vector2) !lm.Prefab {
+    return try lm.prefab("camera_anchor", .{
+        lm.Transform{
+            .position = lm.vec2ToVec3(position),
+        },
+        lm.CameraTarget.init("main", .{}),
     });
 }

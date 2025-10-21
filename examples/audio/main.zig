@@ -13,7 +13,7 @@ pub fn main() !void {
         .asset_paths = .{ .debug = "./resources/" },
     })({
         loom.scene("default")({
-            loom.prefabs(&.{});
+            loom.useMainCamera();
 
             loom.globalBehaviours(.{
                 Organiser{},

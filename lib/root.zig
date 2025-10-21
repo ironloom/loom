@@ -191,11 +191,7 @@ fn projectLoop(_: void) void {
 
         window.clearBackground();
         rendering: {
-            const active_scene = activeScene() orelse {
-                if (!eventloop.isNextSceneQueued())
-                    std.log.err("no scene is loaded", .{});
-                break :rendering;
-            };
+            const active_scene = activeScene() orelse break :rendering;
 
             for (active_scene.cameras.items()) |camera| {
                 camera.begin() catch {
@@ -241,7 +237,7 @@ fn projectLoop(_: void) void {
 }
 
 pub fn scene(id: []const u8) *const fn (void) void {
-    eventloop.addScene(Scene.init(allocators.generic(), id)) catch @panic("Scene creation failed");
+    eventloop.addScene(Scene.init(allocators.arena(), id)) catch @panic("Scene creation failed");
 
     return struct {
         pub fn callback(_: void) void {
@@ -272,6 +268,20 @@ pub fn cameras(camera_configs: []const CameraConfig) void {
 
     selected_scene.useDefaultCameras(camera_configs) catch {
         std.log.err("failed to add cameras to scene: {s}", .{selected_scene.id});
+    };
+}
+
+pub fn useMainCamera() void {
+    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+
+    selected_scene.default_cameras.append(.{
+        .id = "main",
+        .options = .{
+            .draw_mode = .world,
+            .display = .fullscreen,
+        },
+    }) catch |err| {
+        std.log.err("failed to use main camera due to error: {any} in scene \"{s}\"", .{ err, selected_scene.id });
     };
 }
 

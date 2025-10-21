@@ -68,7 +68,7 @@ pub fn deinit(self: *Self) void {
 
     for (self.cameras.items()) |camera| {
         camera.deinit();
-        lm.allocators.generic().destroy(camera);
+        self.alloc.destroy(camera);
     }
 
     self.cameras.deinit();
@@ -78,22 +78,18 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn load(self: *Self) !void {
-    for (self.default_cameras.items()) |camera_config| {
-        _ = try self.addCamera(camera_config.id, camera_config.options);
-    }
+    defer self.is_active = true;
 
-    if (self.cameras.len() == 0) {
-        _ = try self.addCamera("main", .{
-            .display = .fullscreen,
-            .draw_mode = .world,
-        });
+    for (self.default_cameras.items()) |camera_config| {
+        const camera = try self.addCamera(camera_config.id, camera_config.options);
+        std.log.debug("Created camera {s} with UUID {}", .{ camera.id, camera.uuid });
     }
 
     for (self.prefabs.items()) |prefabs| {
         const entity = try prefabs.makeInstance();
-        try self.entities.append(entity);
-
         try entity.addPreparedComponents(false);
+
+        try self.entities.append(entity);
     }
 
     if (self.default_behaviours.len() != 0) {
@@ -139,11 +135,11 @@ pub fn load(self: *Self) !void {
     for (self.entities.items()) |entity| {
         entity.dispatchEvent(.start);
     }
-
-    self.is_active = true;
 }
 
 pub fn unload(self: *Self) void {
+    defer self.is_active = false;
+
     for (self.entities.items()) |item| {
         item.remove_next_frame = true;
         item.dispatchEvent(.end);
@@ -151,17 +147,6 @@ pub fn unload(self: *Self) void {
 
     for (self.behaviours.items()) |behaviour| {
         behaviour.callSafe(.end, self);
-    }
-
-    const behaviour_len = self.behaviours.len();
-    for (1..behaviour_len + 1) |j| {
-        const index = behaviour_len - j;
-        const item = self.behaviours.items()[index];
-
-        item.deinit();
-        self.alloc.destroy(item);
-
-        _ = self.behaviours.swapRemove(index);
     }
 
     const entities_len = self.entities.len();
@@ -182,13 +167,23 @@ pub fn unload(self: *Self) void {
         _ = self.new_entities.swapRemove(index);
     }
 
+    const behaviour_len = self.behaviours.len();
+    for (1..behaviour_len + 1) |j| {
+        const index = behaviour_len - j;
+        const item = self.behaviours.items()[index];
+
+        item.deinit();
+        self.alloc.destroy(item);
+
+        _ = self.behaviours.swapRemove(index);
+    }
+
     self.entities.clearAndFree();
     self.new_entities.clearAndFree();
-    self.is_active = false;
 
     for (self.cameras.items()) |camera| {
         camera.deinit();
-        lm.allocators.generic().destroy(camera);
+        self.alloc.destroy(camera);
     }
 
     self.cameras.clearAndFree();
@@ -376,10 +371,12 @@ pub fn useGlobalBehaviours(self: *Self, behaviour_tuple: anytype) !void {
 }
 
 pub fn useDefaultCameras(self: *Self, config: []const lm.CameraConfig) !void {
+    if (self.is_active) return error.SceneActive;
+
     if (config.len <= self.default_cameras.capacity()) {
         self.default_cameras.clearRetainingCapacity();
     } else {
-        self.default_behaviours.clearAndFree();
+        self.default_cameras.clearAndFree();
     }
 
     try self.default_cameras.appendSlice(config);

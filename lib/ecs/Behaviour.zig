@@ -152,7 +152,7 @@ pub fn Behaviour(comptime T: type) type {
                     const typeinfo = comptime @typeInfo(@TypeOf(func)).@"fn";
 
                     if (comptime (typeinfo.return_type.? == void))
-                        switch (comptime determineFunctionType(K, typeinfo) orelse return) {
+                        switch ((comptime determineFunctionType(K, typeinfo)) orelse return) {
                             .generic => @call(.auto, func, .{ @as(*K, @ptrCast(@alignCast(cache))), target }),
                             .reversed => @call(.auto, func, .{ target, @as(*K, @ptrCast(@alignCast(cache))) }),
                             .self_only => @call(.auto, func, .{@as(*K, @ptrCast(@alignCast(cache)))}),
@@ -160,7 +160,7 @@ pub fn Behaviour(comptime T: type) type {
                             .empty => @call(.auto, func, .{}),
                         }
                     else
-                        try switch (comptime determineFunctionType(K, typeinfo) orelse return) {
+                        try switch ((comptime determineFunctionType(K, typeinfo)) orelse return) {
                             .generic => @call(.auto, func, .{ @as(*K, @ptrCast(@alignCast(cache))), target }),
                             .reversed => @call(.auto, func, .{ target, @as(*K, @ptrCast(@alignCast(cache))) }),
                             .self_only => @call(.auto, func, .{@as(*K, @ptrCast(@alignCast(cache)))}),

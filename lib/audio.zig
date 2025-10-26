@@ -1,8 +1,10 @@
 const std = @import("std");
 const loom = @import("root.zig");
 
+const rl = @import("raylib");
+
 const assets = loom.assets;
-const Sound = loom.rl.Sound;
+const Sound = rl.Sound;
 
 const Cached = struct {
     sound: *Sound,
@@ -18,6 +20,8 @@ var audio_cache: std.StringHashMap(Cached) = undefined;
 var is_alive = false;
 
 pub fn init() void {
+    if (is_alive) return;
+
     audio_cache = .init(loom.allocators.generic());
     is_alive = true;
 }
@@ -25,6 +29,7 @@ pub fn init() void {
 pub fn deinit() void {
     if (!is_alive) return;
 
+    is_alive = false;
     audio_cache.deinit();
 }
 
@@ -49,7 +54,7 @@ pub fn update() void {
 pub fn load(path: []const u8) !void {
     if (!is_alive) return;
 
-    const cached = assets.sound.get(path, .{}) orelse return;
+    const cached = assets.sound.get(path, &.{}) orelse return;
 
     try audio_cache.put(path, Cached{
         .sound = cached,
@@ -61,7 +66,7 @@ pub fn unload(path: []const u8) void {
     if (!is_alive) return;
     if (!audio_cache.remove(path)) return;
 
-    assets.sound.release(path, .{});
+    assets.sound.release(path, &.{});
 }
 
 pub fn play(path: []const u8) !void {
@@ -72,7 +77,7 @@ pub fn play(path: []const u8) !void {
         break :add audio_cache.getPtr(path) orelse return;
     };
 
-    loom.rl.playSound(cached.sound.*);
+    rl.playSound(cached.sound.*);
 }
 
 pub fn playAdvanced(
@@ -97,7 +102,7 @@ pub fn stop(path: []const u8) void {
 
     const cached = audio_cache.getPtr(path) orelse return;
 
-    loom.rl.stopSound(cached.sound.*);
+    rl.stopSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -106,7 +111,7 @@ pub fn proceed(path: []const u8) void {
 
     const cached = audio_cache.getPtr(path) orelse return;
 
-    loom.rl.resumeSound(cached.sound.*);
+    rl.resumeSound(cached.sound.*);
     cached.playing = true;
 }
 
@@ -115,7 +120,7 @@ pub fn pause(path: []const u8) void {
 
     const cached = audio_cache.getPtr(path) orelse return;
 
-    loom.rl.pauseSound(cached.sound.*);
+    rl.pauseSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -123,7 +128,7 @@ pub fn isPlaying(path: []const u8) bool {
     if (!is_alive) return false;
 
     const cached = audio_cache.getPtr(path) orelse return false;
-    cached.playing = loom.rl.isSoundPlaying(cached.sound.*);
+    cached.playing = rl.isSoundPlaying(cached.sound.*);
 
     return cached.playing;
 }
@@ -132,7 +137,7 @@ pub fn setVolume(path: []const u8, volume: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    loom.rl.setSoundVolume(cached.sound.*, volume);
+    rl.setSoundVolume(cached.sound.*, volume);
     cached.volume = volume;
 }
 
@@ -148,7 +153,7 @@ pub fn setPitch(path: []const u8, pitch: f32) void {
 
     const cached = audio_cache.getPtr(path) orelse return;
 
-    loom.rl.setSoundPitch(cached.sound.*, pitch);
+    rl.setSoundPitch(cached.sound.*, pitch);
     cached.pitch = pitch;
 }
 
@@ -165,7 +170,7 @@ pub fn setPan(path: []const u8, pan: f32) void {
 
     const cached = audio_cache.getPtr(path) orelse return;
 
-    loom.rl.setSoundPan(cached.sound.*, pan);
+    rl.setSoundPan(cached.sound.*, pan);
     cached.pan = pan;
 }
 

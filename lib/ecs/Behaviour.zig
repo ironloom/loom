@@ -1,187 +1,214 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Entity = @import("Entity.zig");
+const c = @cImport({
+    @cInclude("string.h");
+    @cInclude("stdlib.h");
+});
 
-const FnType = ?(*const fn (self: *anyopaque, entity: *Entity) anyerror!void);
-pub const Events = enum { awake, start, update, tick, end };
-const Error = error{OutOfMemory};
-const FunctionType = enum {
-    generic,
-    reversed,
-    self_only,
-    entity_only,
-    empty,
-};
+pub fn Behaviour(comptime T: type) type {
+    return struct {
+        const FnType = ?(*const fn (self: *anyopaque, target: *T) anyerror!void);
+        pub const Events = enum { awake, start, update, tick, end };
+        const Error = error{OutOfMemory};
+        const FunctionType = enum {
+            generic,
+            reversed,
+            self_only,
+            target_only,
+            empty,
+        };
 
-const Self = @This();
+        const Self = @This();
 
-cache: *anyopaque,
-name: []const u8 = "[UNNAMED]",
-hash: u64,
-is_alive: bool = false,
-initalised: bool = false,
-marked_for_removal: bool = false,
+        cache: *anyopaque,
+        cache_size: usize = 0,
+        name: []const u8 = "UNNAMED_BEHAVIOUR",
+        hash: u64,
+        initalised: bool = false,
+        marked_for_removal: bool = false,
 
-awake: FnType = null,
-start: FnType = null,
-update: FnType = null,
-tick: FnType = null,
-end: FnType = null,
+        awake: FnType = null,
+        start: FnType = null,
+        update: FnType = null,
+        tick: FnType = null,
+        end: FnType = null,
 
-pub fn init(value: anytype) !Self {
-    const T: type = comptime @TypeOf(value);
+        pub fn init(value: anytype) !Self {
+            const K: type = comptime @TypeOf(value);
 
-    const c_ptr = std.c.malloc(@sizeOf(T)) orelse return Error.OutOfMemory;
-    const ptr: *T = @ptrCast(@alignCast(c_ptr));
-    ptr.* = value;
+            const c_ptr = std.c.malloc(@sizeOf(K)) orelse return Error.OutOfMemory;
+            const ptr: *K = @ptrCast(@alignCast(c_ptr));
+            ptr.* = value;
 
-    var self = Self{
-        .cache = @ptrCast(@alignCast(ptr)),
-        .name = @typeName(T),
-        .hash = comptime calculateHash(T),
-        .is_alive = true,
-    };
-    self.attachEvents(T);
+            var self = Self{
+                .cache = @ptrCast(@alignCast(ptr)),
+                .cache_size = @sizeOf(K),
 
-    return self;
-}
+                .name = @typeName(K),
+                .hash = comptime calculateHash(K),
+            };
+            self.attachEvents(K);
 
-pub fn add(self: *Self, event: Events, callback: FnType) void {
-    switch (event) {
-        .awake => self.awake = callback,
-        .start => self.start = callback,
-        .update => self.update = callback,
-        .tick => self.tick = callback,
-        .end => self.end = callback,
-    }
-}
+            return self;
+        }
 
-pub fn callSafe(self: *Self, event: Events, entity: *Entity) void {
-    if (!self.is_alive) return;
+        pub fn deinit(self: *Self) void {
+            std.c.free(self.cache);
+            self.* = undefined;
+        }
 
-    defer if (event == .end and self.is_alive) {
-        self.is_alive = false;
-        std.c.free(self.cache);
-    };
+        pub fn duplicate(self: Self) !Self {
+            const c_ptr = std.c.malloc(self.cache_size) orelse return Error.OutOfMemory;
+            _ = c.memccpy(c_ptr, self.cache, @intCast(self.cache_size), @intCast(1));
 
-    defer if (event == .awake) {
-        self.initalised = true;
-    };
+            var new = Self{
+                .cache = c_ptr,
+                .cache_size = self.cache_size,
 
-    const func = switch (event) {
-        .awake => self.awake,
-        .start => self.start,
-        .update => self.update,
-        .tick => self.tick,
-        .end => self.end,
-    } orelse return;
+                .name = self.name,
+                .hash = self.hash,
+            };
 
-    func(self.cache, entity) catch {
-        std.log.err("behaviour event failed ({s}({x})->{s}.{s})", .{
-            entity.id,
-            entity.uuid,
-            self.name,
+            new.awake = self.awake;
+            new.start = self.start;
+            new.update = self.update;
+            new.tick = self.tick;
+            new.end = self.end;
+
+            return new;
+        }
+
+        pub fn add(self: *Self, event: Events, callback: FnType) void {
             switch (event) {
-                .awake => "Awake",
-                .start => "Start",
-                .end => "End",
-                .update => "Update",
-                .tick => "Tick",
-            },
-        });
-    };
-}
+                .awake => self.awake = callback,
+                .start => self.start = callback,
+                .update => self.update = callback,
+                .tick => self.tick = callback,
+                .end => self.end = callback,
+            }
+        }
 
-inline fn determineFunctionType(comptime T: type, comptime info: std.builtin.Type.Fn) ?FunctionType {
-    switch (info.params.len) {
-        2 => {
-            if (info.params[0].type == *T and info.params[1].type == *Entity) return FunctionType.generic;
-            if (info.params[0].type == *Entity and info.params[1].type == *T) return FunctionType.reversed;
-        },
-        1 => {
-            if (info.params[0].type == *T) return FunctionType.self_only;
-            if (info.params[0].type == *Entity) return FunctionType.entity_only;
-        },
-        0 => {
-            return FunctionType.empty;
-        },
-        else => {},
-    }
-    return null;
-}
+        pub fn callSafe(self: *Self, event: Events, target: *T) void {
+            defer if (event == .awake) {
+                self.initalised = true;
+            };
 
-fn attachEvents(self: *Self, comptime T: type) void {
-    // 5 Function types are excepted
-    //  - fn(*Self, *Entity) - Generic
-    //  - fn(*Entity, *Self) - Reversed
-    //  - fn(*Self)          - SelfOnly
-    //  - fn(*Entity)        - EntityOnly
-    //  - fn()               - Empty
+            const func = switch (event) {
+                .awake => self.awake,
+                .start => self.start,
+                .update => self.update,
+                .tick => self.tick,
+                .end => self.end,
+            } orelse return;
 
-    const wrapper = struct {
-        fn call(comptime fn_name: []const u8, cache: *anyopaque, entity: *Entity) !void {
-            std.debug.assert(std.meta.hasFn(T, fn_name));
+            func(self.cache, target) catch {
+                std.log.err("behaviour event failed ({s}({x})->{s}.{s})", .{
+                    target.id,
+                    target.uuid,
+                    self.name,
+                    switch (event) {
+                        .awake => "Awake",
+                        .start => "Start",
+                        .end => "End",
+                        .update => "Update",
+                        .tick => "Tick",
+                    },
+                });
+            };
+        }
 
-            const func = comptime @field(T, fn_name);
-            const typeinfo = comptime @typeInfo(@TypeOf(func)).@"fn";
+        inline fn determineFunctionType(comptime K: type, comptime info: std.builtin.Type.Fn) ?FunctionType {
+            switch (info.params.len) {
+                2 => {
+                    if (info.params[0].type == *K and info.params[1].type == *T) return FunctionType.generic;
+                    if (info.params[0].type == *T and info.params[1].type == *K) return FunctionType.reversed;
+                },
+                1 => {
+                    if (info.params[0].type == *K) return FunctionType.self_only;
+                    if (info.params[0].type == *T) return FunctionType.target_only;
+                },
+                0 => {
+                    return FunctionType.empty;
+                },
+                else => {},
+            }
+            return null;
+        }
 
-            if (comptime (typeinfo.return_type.? == void))
-                switch (comptime determineFunctionType(T, typeinfo) orelse return) {
-                    .generic => @call(.auto, func, .{ @as(*T, @ptrCast(@alignCast(cache))), entity }),
-                    .reversed => @call(.auto, func, .{ entity, @as(*T, @ptrCast(@alignCast(cache))) }),
-                    .self_only => @call(.auto, func, .{@as(*T, @ptrCast(@alignCast(cache)))}),
-                    .entity_only => @call(.auto, func, .{entity}),
-                    .empty => @call(.auto, func, .{}),
+        fn attachEvents(self: *Self, comptime K: type) void {
+            // 5 Function types are excepted
+            //  - fn(*Self, *K) - Generic
+            //  - fn(*K, *Self) - Reversed
+            //  - fn(*Self)     - SelfOnly
+            //  - fn(*K)        - TargetOnly
+            //  - fn()          - Empty
+
+            const wrapper = struct {
+                fn call(comptime fn_name: []const u8, cache: *anyopaque, target: *T) !void {
+                    std.debug.assert(std.meta.hasFn(K, fn_name));
+
+                    const func = comptime @field(K, fn_name);
+                    const typeinfo = comptime @typeInfo(@TypeOf(func)).@"fn";
+
+                    if (comptime (typeinfo.return_type.? == void))
+                        switch ((comptime determineFunctionType(K, typeinfo)) orelse return) {
+                            .generic => @call(.auto, func, .{ @as(*K, @ptrCast(@alignCast(cache))), target }),
+                            .reversed => @call(.auto, func, .{ target, @as(*K, @ptrCast(@alignCast(cache))) }),
+                            .self_only => @call(.auto, func, .{@as(*K, @ptrCast(@alignCast(cache)))}),
+                            .target_only => @call(.auto, func, .{target}),
+                            .empty => @call(.auto, func, .{}),
+                        }
+                    else
+                        try switch ((comptime determineFunctionType(K, typeinfo)) orelse return) {
+                            .generic => @call(.auto, func, .{ @as(*K, @ptrCast(@alignCast(cache))), target }),
+                            .reversed => @call(.auto, func, .{ target, @as(*K, @ptrCast(@alignCast(cache))) }),
+                            .self_only => @call(.auto, func, .{@as(*K, @ptrCast(@alignCast(cache)))}),
+                            .target_only => @call(.auto, func, .{target}),
+                            .empty => @call(.auto, func, .{}),
+                        };
                 }
-            else
-                try switch (comptime determineFunctionType(T, typeinfo) orelse return) {
-                    .generic => @call(.auto, func, .{ @as(*T, @ptrCast(@alignCast(cache))), entity }),
-                    .reversed => @call(.auto, func, .{ entity, @as(*T, @ptrCast(@alignCast(cache))) }),
-                    .self_only => @call(.auto, func, .{@as(*T, @ptrCast(@alignCast(cache)))}),
-                    .entity_only => @call(.auto, func, .{entity}),
-                    .empty => @call(.auto, func, .{}),
-                };
+
+                pub fn awake(cache: *anyopaque, target: *T) !void {
+                    try call("Awake", cache, target);
+                }
+
+                pub fn start(cache: *anyopaque, target: *T) !void {
+                    try call("Start", cache, target);
+                }
+                pub fn end(cache: *anyopaque, target: *T) !void {
+                    try call("End", cache, target);
+                }
+
+                pub fn update(cache: *anyopaque, target: *T) !void {
+                    try call("Update", cache, target);
+                }
+                pub fn tick(cache: *anyopaque, target: *T) !void {
+                    try call("Tick", cache, target);
+                }
+            };
+
+            if (std.meta.hasFn(K, "Awake")) self.add(.awake, wrapper.awake);
+
+            if (std.meta.hasFn(K, "Start")) self.add(.start, wrapper.start);
+            if (std.meta.hasFn(K, "End")) self.add(.end, wrapper.end);
+
+            if (std.meta.hasFn(K, "Update")) self.add(.update, wrapper.update);
+            if (std.meta.hasFn(K, "Tick")) self.add(.tick, wrapper.tick);
         }
 
-        pub fn awake(cache: *anyopaque, entity: *Entity) !void {
-            try call("Awake", cache, entity);
+        pub fn castBack(self: *Self, comptime K: type) ?*K {
+            return if (self.isType(K)) @ptrCast(@alignCast(self.cache)) else null;
         }
 
-        pub fn start(cache: *anyopaque, entity: *Entity) !void {
-            try call("Start", cache, entity);
-        }
-        pub fn end(cache: *anyopaque, entity: *Entity) !void {
-            try call("End", cache, entity);
-        }
-
-        pub fn update(cache: *anyopaque, entity: *Entity) !void {
-            try call("Update", cache, entity);
-        }
-        pub fn tick(cache: *anyopaque, entity: *Entity) !void {
-            try call("Tick", cache, entity);
+        pub inline fn isType(self: *Self, comptime K: type) bool {
+            return self.hash == comptime calculateHash(K);
         }
     };
-
-    if (std.meta.hasFn(T, "Awake")) self.add(.awake, wrapper.awake);
-
-    if (std.meta.hasFn(T, "Start")) self.add(.start, wrapper.start);
-    if (std.meta.hasFn(T, "End")) self.add(.end, wrapper.end);
-
-    if (std.meta.hasFn(T, "Update")) self.add(.update, wrapper.update);
-    if (std.meta.hasFn(T, "Tick")) self.add(.tick, wrapper.tick);
-}
-
-pub fn castBack(self: *Self, comptime T: type) ?*T {
-    return if (self.isType(T)) @ptrCast(@alignCast(self.cache)) else null;
-}
-
-pub inline fn isType(self: *Self, comptime T: type) bool {
-    return self.hash == comptime calculateHash(T);
 }
 
 pub inline fn calculateHash(comptime T: type) u64 {
-    const name_hash: comptime_int = comptime switch (@typeInfo(T)) {
+    const struct_hash: comptime_int = comptime switch (@typeInfo(T)) {
         .@"struct", .@"enum" => blk: {
             var fieldsum: comptime_int = 1;
 
@@ -193,17 +220,19 @@ pub inline fn calculateHash(comptime T: type) u64 {
                 }
             }
 
-            for (@typeName(T)) |char| {
-                fieldsum += @as(comptime_int, @intCast(char)) *
-                    (@as(comptime_int, @intCast(@alignOf(T))) + 1);
-            }
-
             break :blk fieldsum;
         },
         else => 1,
     };
 
+    var name_hash: comptime_int = 0;
+
+    inline for (@typeName(T)) |char| {
+        name_hash += @as(comptime_int, @intCast(char)) *
+            (@as(comptime_int, @intCast(@alignOf(T))) + 1);
+    }
+
     return (@max(1, @sizeOf(T)) * @max(1, @alignOf(T)) +
         @max(1, @bitSizeOf(T)) * @max(1, @alignOf(T)) +
-        name_hash * @max(1, @alignOf(T)) * 13) % std.math.maxInt(u63);
+        struct_hash * name_hash * @max(1, @alignOf(T)) * 13) % std.math.maxInt(u63);
 }

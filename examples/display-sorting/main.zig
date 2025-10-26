@@ -11,7 +11,11 @@ pub fn main() !void {
         .asset_paths = .{ .debug = "./" },
     })({
         loom.scene("default")({
+            loom.useMainCamera();
+
             loom.prefabs(&.{
+                try prefabs.CameraAnchor(.{ .x = 0, .y = 0 }),
+
                 try prefabs.MovingBox(.{ .x = 0, .y = -300 }),
                 try prefabs.StillBox(.{ .x = 0, .y = 100 }),
                 try prefabs.StillBox(.{ .x = 0, .y = 0 }),

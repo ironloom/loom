@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const loom = @import("root.zig");
-const rl = loom.rl;
+const rl = @import("raylib");
 
 pub const KeyboardKey = rl.KeyboardKey;
 
@@ -67,7 +67,7 @@ pub const gamepad = struct {
     pub const getButtonPressed = rl.getGamepadButtonPressed;
 
     pub fn anyButton() bool {
-        return .null != getButtonPressed();
+        return .unknown != getButtonPressed();
     }
 
     pub fn getStickVector(gamepad_number: i32, stick: enum { left, right }, threshold: f32) loom.Vector2 {

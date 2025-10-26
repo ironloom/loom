@@ -73,7 +73,7 @@ pub fn init(id: []const u8, options: Options) !Self {
         .uuid = lm.UUIDv7(),
         .partial = partial,
         .shader = if (options.shader) |path|
-            lm.assets.shader.get(path, .{})
+            lm.assets.shader.get(path, &.{})
         else
             null,
         .draw_mode = options.draw_mode,
@@ -102,6 +102,8 @@ pub fn init(id: []const u8, options: Options) !Self {
 pub fn deinit(self: *Self) void {
     self.render_texture.unload();
     if (self.shader) |self_shader| lm.assets.shader.releasePtr(self_shader);
+
+    self.* = undefined;
 }
 
 pub fn begin(self: *Self) !void {
@@ -179,7 +181,7 @@ pub fn useShader(self: *Self, shader_path: ?[]const u8) void {
         lm.assets.shader.releasePtr(current_shader);
 
     self.shader = if (shader_path) |sp|
-        try lm.assets.shader.get(sp, .{})
+        lm.assets.shader.get(sp, &.{})
     else
         null;
 }

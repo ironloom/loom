@@ -1,18 +1,20 @@
 const std = @import("std");
-const loom = @import("loom");
+const lm = @import("loom");
 
 const prefabs = @import("prefabs.zig");
 
 pub fn main() !void {
-    loom.project(.{
+    lm.project(.{
         .window = .{
             .title = "loom example: spawning / removing",
             .resizable = true,
         },
         .asset_paths = .{ .debug = "./" },
     })({
-        loom.scene("default")({
-            loom.prefabs(&.{
+        lm.scene("default")({
+            lm.useMainCamera();
+
+            lm.prefabs(&.{
                 try prefabs.Spawner(.init(
                     640,
                     360,

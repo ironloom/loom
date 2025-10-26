@@ -1,6 +1,7 @@
 const std = @import("std");
-const loom = @import("../root.zig");
+const lm = @import("../root.zig");
 
+const Allocator = @import("std").mem.Allocator;
 const clay = @import("zclay");
 
 const rl = @import("raylib");
@@ -28,7 +29,7 @@ const TextureCache = struct {
     name: []const u8,
 
     texture: *rl.Texture2D,
-    size: loom.Vector2,
+    size: lm.Vector2,
     refs: usize,
 };
 
@@ -41,25 +42,25 @@ const FontEntry = struct {
     pub fn init(name: []const u8, id: anytype) Self {
         return .{
             .name = name,
-            .id = loom.coerceTo(u16, id) orelse 0,
+            .id = lm.coerceTo(u16, id) orelse 0,
         };
     }
 };
 
-var textures: std.ArrayList(TextureCache) = undefined;
-var fonts: std.ArrayList(FontEntry) = undefined;
-var fonts_cache: std.ArrayList(FontEntry) = undefined;
+var textures: lm.List(TextureCache) = undefined;
+var fonts: lm.List(FontEntry) = undefined;
+var fonts_cache: lm.List(FontEntry) = undefined;
 var font_index: usize = 1;
-var allocator: std.mem.Allocator = undefined;
+var alloc: std.mem.Allocator = undefined;
 
-pub fn init() !void {
-    allocator = loom.allocators.generic();
-    fonts = .empty;
-    fonts_cache = .empty;
-    textures = .empty;
+pub fn init(allocator: Allocator) !void {
+    fonts = .init(allocator);
+    fonts_cache = .init(allocator);
+    textures = .init(allocator);
+    alloc = allocator;
 
-    const min_memory_size: usize = loom.coerceTo(usize, clay.minMemorySize()).?;
-    memory = try loom.allocators.generic().alloc(u8, min_memory_size);
+    const min_memory_size: usize = lm.coerceTo(usize, clay.minMemorySize()).?;
+    memory = try alloc.alloc(u8, min_memory_size);
 
     const arena: clay.Arena = clay.createArenaWithCapacityAndMemory(memory);
 
@@ -70,70 +71,83 @@ pub fn init() !void {
 }
 
 pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
-    const win_size = loom.window.size.get();
+    const win_size = lm.window.size.get();
     clay.setLayoutDimensions(.{
         .w = win_size.x,
         .h = win_size.y,
     });
 
-    try renderer.clayRaylibRender(commands, loom.allocators.generic());
+    try renderer.clayRaylibRender(commands, lm.allocators.generic());
 
-    var cache_clone = try fonts_cache.clone(allocator);
-    defer cache_clone.deinit(allocator);
+    const cache_len = fonts_cache.len();
+    for (1..cache_len + 1) |j| {
+        const index = cache_len - j;
+        const cached = fonts_cache.items()[index];
 
-    for (cache_clone.items, 0..) |cached, index| {
-        if (included: {
-            for (fonts.items) |current| {
-                if (cached.id == current.id) break :included true;
-            }
-            break :included false;
-        })
-            continue;
-
-        loom.assets.font.release(cached.name, .{});
+        lm.assets.font.release(cached.name, &.{});
         _ = fonts_cache.swapRemove(index);
     }
 
-    fonts_cache.deinit(allocator);
-    fonts_cache = try fonts.clone(allocator);
-    fonts.clearAndFree(allocator);
+    fonts_cache.deinit();
+    fonts_cache = try fonts.clone();
 
-    for (textures.items) |*texture| {
-        if (texture.refs == 0) loom.assets.texture.release(texture.name, .{ 1, 1 });
+    fonts.clearAndFree();
+
+    for (textures.items()) |*texture| {
+        if (texture.refs == 0) lm.assets.texture.release(texture.name, &.{ 1, 1 });
         texture.refs = 0;
     }
 }
 
 pub fn deinit() void {
-    for (fonts.items) |entry| {
-        loom.assets.font.release(entry.name, .{});
+    const fonts_len = fonts.len();
+    for (1..fonts_len + 1) |j| {
+        const index = fonts_len - j;
+        const current = fonts.items()[index];
+
+        lm.assets.font.release(current.name, &.{});
+        _ = fonts.swapRemove(index);
     }
 
-    for (textures.items) |texture| {
-        loom.assets.texture.release(texture.name, .{ texture.size.x, texture.size.y });
+    const cache_len = fonts_cache.len();
+    for (1..cache_len + 1) |j| {
+        const index = cache_len - j;
+        const cached = fonts_cache.items()[index];
+
+        lm.assets.font.release(cached.name, &.{});
+        _ = fonts_cache.swapRemove(index);
     }
 
-    fonts_cache.deinit(allocator);
-    fonts.deinit(allocator);
-    textures.deinit(allocator);
+    const textures_len = textures.len();
+    for (1..textures_len + 1) |j| {
+        const index = textures_len - j;
+        const texture = textures.items()[index];
 
-    loom.allocators.generic().free(memory);
+        lm.assets.texture.release(texture.name, &.{});
+        _ = textures.swapRemove(index);
+    }
+
+    fonts_cache.deinit();
+    fonts.deinit();
+    textures.deinit();
+
+    alloc.free(memory);
 }
 
 fn loadFont(rel_path: []const u8) !void {
-    renderer.raylib_fonts[font_index] = (loom.assets.font.get(rel_path, .{}) orelse return error.FontNotFound).*;
+    renderer.raylib_fonts[font_index] = (lm.assets.font.get(rel_path, &.{}) orelse return error.FontNotFound).*;
     rl.setTextureFilter(renderer.raylib_fonts[font_index].?.texture, .bilinear);
 }
 
 /// Get the corresponding font id for a file path
 pub fn fontID(rel_path: []const u8) u16 {
-    for (fonts.items) |font_entry| {
+    for (fonts.items()) |font_entry| {
         if (!std.mem.eql(u8, font_entry.name, rel_path)) continue;
         if (renderer.raylib_fonts[font_entry.id] == null) continue;
         return font_entry.id;
     }
 
-    for (fonts_cache.items) |font_entry| {
+    for (fonts_cache.items()) |font_entry| {
         if (!std.mem.eql(u8, font_entry.name, rel_path)) continue;
         if (renderer.raylib_fonts[font_entry.id] == null) continue;
 
@@ -148,7 +162,7 @@ pub fn fontID(rel_path: []const u8) u16 {
 
     const font_entry: FontEntry = .init(rel_path, font_index);
     loadFont(rel_path) catch return 0;
-    fonts.append(allocator, font_entry) catch return 0;
+    fonts.append(font_entry) catch return 0;
 
     return font_entry.id;
 }
@@ -196,10 +210,10 @@ pub fn hex(hex_colour: u32) [4]f32 {
     // RR GG BB AA
     //
 
-    const r = loom.tof32((hex_colour >> 24) & 0xFF);
-    const g = loom.tof32((hex_colour >> 16) & 0xFF);
-    const b = loom.tof32((hex_colour >> 8) & 0xFF);
-    const a = loom.tof32(hex_colour & 0xFF);
+    const r = lm.tof32((hex_colour >> 24) & 0xFF);
+    const g = lm.tof32((hex_colour >> 16) & 0xFF);
+    const b = lm.tof32((hex_colour >> 8) & 0xFF);
+    const a = lm.tof32(hex_colour & 0xFF);
 
     return .{ r, g, b, a };
 }
@@ -241,14 +255,13 @@ pub const Color = struct {
     pub const black: clay.Color = finalise(.{});
 };
 
-pub fn image(path: []const u8, size: loom.Vector2) !clay.ImageElementConfig {
-    for (textures.items) |*texture| {
+pub fn image(path: []const u8, size: lm.Vector2) !clay.ImageElementConfig {
+    for (textures.items()) |*texture| {
         if (!std.mem.eql(u8, path, texture.name)) continue;
 
         texture.refs += 1;
         return clay.ImageElementConfig{
             .image_data = texture.texture,
-            .source_dimensions = loom.vec2ToDims(texture.size),
         };
     }
 
@@ -256,13 +269,12 @@ pub fn image(path: []const u8, size: loom.Vector2) !clay.ImageElementConfig {
         .name = path,
         .refs = 1,
         .size = size,
-        .texture = loom.assets.texture.get(path, .{ size.x, size.y }) orelse return error.NoImageFound,
+        .texture = lm.assets.texture.get(path, &.{ lm.toi32(size.x), lm.toi32(size.y) }) orelse return error.NoImageFound,
     };
 
-    try textures.append(allocator, entry);
+    try textures.append(entry);
 
     return clay.ImageElementConfig{
         .image_data = entry.texture,
-        .source_dimensions = loom.vec2ToDims(size),
     };
 }

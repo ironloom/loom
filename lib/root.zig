@@ -5,85 +5,29 @@ const Allocator = @import("std").mem.Allocator;
 // Types and Basic Utilities
 // --------------------------------------------------------------------------------------------------------------
 
-pub const rl = @import("raylib");
-pub const clay = @import("zclay");
-pub const uuid = @import("uuid");
+const rl = @import("raylib");
+const clay = @import("zclay");
+const uuid = @import("uuid");
+
+pub const deps = if (builtin.is_test)
+    struct {}
+else
+    struct {
+        pub const rl = @import("raylib");
+        pub const clay = @import("zclay");
+        pub const uuid = @import("uuid");
+    };
+
 pub const window = @import("window.zig");
 
-pub const arrays = @import("./types/Array.zig");
-pub const Array = arrays.Array;
-pub const array = arrays.array;
-pub const arrayAdvanced = arrays.arrayAdvanced;
-
-pub const lists = @import("./types/List.zig");
-pub const List = lists.List;
-
-test "Array(T) generic type" {
-    const expect = std.testing.expect;
-
-    var test_arr = try Array(u8).init(.{ 1, 2, 3, 4 }, .{
-        .allocator = std.testing.allocator,
-    });
-    defer test_arr.deinit();
-
-    var list = List(u8).init(std.testing.allocator);
-    defer list.deinit();
-
-    try list.append(1);
-
-    var from_array_list = try Array(u8).fromList(list);
-    defer from_array_list.deinit();
-
-    try expect(from_array_list.len() == 1);
-
-    var from_slice = try Array(u8).fromConstArray(&.{ 1, 2, 3, 4 }, std.testing.allocator);
-    defer from_slice.deinit();
-
-    try expect(from_slice.len() == 4);
-
-    try expect(test_arr.at(0) == 1);
-    try expect(test_arr.at(1) == 2);
-    try expect(test_arr.at(2) == 3);
-    try expect(test_arr.at(3) == 4);
-
-    try expect(test_arr.len() == 4);
-    try expect(test_arr.lastIndex() == 3);
-
-    try expect(test_arr.getFirst() == 1);
-    try expect(test_arr.getLast() == 4);
-
-    test_arr.set(3, 5);
-    try expect(test_arr.at(3) == 5);
-
-    try expect(test_arr.at(4) == null);
-
-    try expect(test_arr.reduce(usize, struct {
-        pub fn callback(accumulator: usize, current: u8) !usize {
-            return accumulator + current;
-        }
-    }.callback, 0) == 5 + 3 + 2 + 1);
-
-    var mapped = try test_arr.map(usize, struct {
-        pub fn callback(current: u8) !usize {
-            return current + 10;
-        }
-    }.callback);
-    defer mapped.deinit();
-
-    try expect(mapped.at(0) == 11);
-    try expect(mapped.at(1) == 12);
-    try expect(mapped.at(2) == 13);
-    try expect(mapped.at(3) == 15);
-}
+pub const types = @import("types/types.zig");
+pub const Array = types.Array;
+pub const List = types.List;
+pub const SharedPointer = types.SharedPointer;
 
 var seed: u64 = undefined;
 var xoshiro: std.Random.Xoshiro256 = .init(0);
 pub var random: std.Random = xoshiro.random();
-
-pub const SharedPtr = @import("./types/SharedPointer.zig").SharedPtr;
-pub fn sharedPtr(value: anytype) !*SharedPtr(@TypeOf(value)) {
-    return try SharedPtr(@TypeOf(value)).create(allocators.generic(), value);
-}
 
 pub const Vector2 = rl.Vector2;
 pub const Vector3 = rl.Vector3;
@@ -91,11 +35,15 @@ pub const Vector4 = rl.Vector4;
 pub const Rectangle = rl.Rectangle;
 pub const Color = rl.Color;
 
-pub const GlobalBehaviour = ecs.GlobalBehaviour;
-pub const Behaviour = ecs.Behaviour;
+pub const ecs = @import("ecs/ecs.zig");
+pub const GlobalBehaviour = ecs.Behaviour(Scene);
+pub const Behaviour = ecs.Behaviour(Entity);
 pub const Entity = ecs.Entity;
 pub const Prefab = ecs.Prefab;
+
+pub const eventloop = @import("eventloop/eventloop.zig");
 pub const Scene = eventloop.Scene;
+pub const SceneController = eventloop.SceneController;
 
 pub const UUIDv7 = uuid.v7.new;
 
@@ -112,14 +60,6 @@ pub const interpolation = @import("builtin-components/animator/interpolation.zig
 
 pub const Camera = @import("Camera.zig");
 
-pub const ecs = struct {
-    pub const GlobalBehaviour = @import("./ecs/GlobalBehaviour.zig");
-    pub const Behaviour = @import("./ecs/Behaviour.zig");
-    pub const Entity = @import("./ecs/Entity.zig");
-    pub const Prefab = @import("./ecs/Prefab.zig");
-};
-
-pub const eventloop = @import("eventloop/eventloop.zig");
 pub const assets = @import("assets.zig");
 pub const audio = @import("audio.zig");
 pub const display = @import("display.zig");
@@ -132,10 +72,13 @@ pub const mouse = input.mouse;
 pub const gamepad = input.gamepad;
 
 pub const useAssetPaths = assets.files.paths.use;
-var running = true;
+const program = struct {
+    var dispatcher: SceneController = undefined;
+    var running: bool = true;
+};
 
 pub fn quit() void {
-    running = false;
+    program.running = false;
 }
 
 // Creating the project
@@ -202,8 +145,8 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     };
 
     display.init();
-    ui.init() catch @panic("UI INIT FAILED");
-    eventloop.init(allocators.arena());
+    ui.init(allocators.arena()) catch @panic("UI INIT FAILED");
+    program.dispatcher = .init(allocators.arena());
 
     std.posix.getrandom(std.mem.asBytes(&seed)) catch {
         seed = coerceTo(u64, rl.getTime()).?;
@@ -211,15 +154,15 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
-    return projectLoop;
+    return projectLoopAndDeinit;
 }
 
-fn projectLoop(_: void) void {
-    eventloop.setActive("default") catch {
+fn projectLoopAndDeinit(_: void) void {
+    program.dispatcher.setActive("default") catch {
         std.log.info("no default scene", .{});
     };
 
-    while (!window.shouldClose() and running) {
+    while (!window.shouldClose() and program.running) {
         if (keyboard.getKeyDown(.enter) and keyboard.getKey(.left_alt))
             window.toggleDebugMode();
 
@@ -241,10 +184,7 @@ fn projectLoop(_: void) void {
 
         clay.beginLayout();
 
-        eventloop.execute();
-        defer eventloop.loadNext() catch {
-            std.log.debug("failed to load next scene!", .{});
-        };
+        program.dispatcher.execute();
 
         audio.update();
 
@@ -253,11 +193,7 @@ fn projectLoop(_: void) void {
 
         window.clearBackground();
         rendering: {
-            const active_scene = activeScene() orelse {
-                if (!eventloop.isNextSceneQueued())
-                    std.log.err("no scene is loaded", .{});
-                break :rendering;
-            };
+            const active_scene = activeScene() orelse break :rendering;
 
             for (active_scene.cameras.items()) |camera| {
                 camera.begin() catch {
@@ -284,7 +220,7 @@ fn projectLoop(_: void) void {
             rl.drawFPS(10, 10);
     }
 
-    eventloop.deinit();
+    program.dispatcher.deinit();
     ui.deinit();
     display.deinit();
 
@@ -303,17 +239,11 @@ fn projectLoop(_: void) void {
 }
 
 pub fn scene(id: []const u8) *const fn (void) void {
-    eventloop.addScene(Scene.init(allocators.generic(), id)) catch @panic("Scene creation failed");
-
-    return struct {
-        pub fn callback(_: void) void {
-            eventloop.close();
-        }
-    }.callback;
+    return program.dispatcher.addSceneOpen(Scene.init(allocators.arena(), id)) catch @panic("Scene creation failed");
 }
 
 pub fn prefabs(prefab_array: []const Prefab) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.addPrefabs(prefab_array) catch {
         std.log.err("couldn't add prefabs", .{});
@@ -321,7 +251,7 @@ pub fn prefabs(prefab_array: []const Prefab) void {
 }
 
 pub fn globalBehaviours(behaviours: anytype) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.useGlobalBehaviours(behaviours) catch |err| {
         std.log.err("failed to apply global behaviours for scene: \"{s}\". error: {any}", .{ selected_scene.id, err });
@@ -330,13 +260,25 @@ pub fn globalBehaviours(behaviours: anytype) void {
 
 pub const CameraConfig = struct { id: []const u8, options: Camera.Options };
 pub fn cameras(camera_configs: []const CameraConfig) void {
-    const selected_scene = eventloop.active_scene orelse eventloop.open_scene orelse return;
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
-    for (camera_configs) |config| {
-        selected_scene.addDefaultCamera(config) catch {
-            std.log.err("failed to add camera: {s}", .{config.id});
-        };
-    }
+    selected_scene.useDefaultCameras(camera_configs) catch {
+        std.log.err("failed to add cameras to scene: {s}", .{selected_scene.id});
+    };
+}
+
+pub fn useMainCamera() void {
+    const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
+
+    selected_scene.default_cameras.append(.{
+        .id = "main",
+        .options = .{
+            .draw_mode = .world,
+            .display = .fullscreen,
+        },
+    }) catch |err| {
+        std.log.err("failed to use main camera due to error: {any} in scene \"{s}\"", .{ err, selected_scene.id });
+    };
 }
 
 pub const prefab = Prefab.init;
@@ -355,7 +297,7 @@ const SummonUnion = union(SummonTag) {
 };
 
 pub fn summon(entities_prefabs: []const SummonUnion) !void {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = program.dispatcher.active_scene orelse return;
 
     for (entities_prefabs) |value| {
         switch (value) {
@@ -383,11 +325,11 @@ pub fn makeEntityI(id: []const u8, index: u32, components: anytype) !*Entity {
 }
 
 pub inline fn activeScene() ?*Scene {
-    return eventloop.active_scene;
+    return program.dispatcher.active_scene;
 }
 
 pub fn getEntity(target: EntityTargetType) ?*Entity {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = program.dispatcher.active_scene orelse return null;
 
     return switch (target) {
         .id => |id| ascene.getEntityById(id),
@@ -396,8 +338,10 @@ pub fn getEntity(target: EntityTargetType) ?*Entity {
     };
 }
 
-/// The scene will be loaded after the currect eventloop cycle is executed.
-pub const loadScene = eventloop.setActive;
+/// The scene will be loaded after the currect dispatcher cycle is executed.
+pub inline fn loadScene(scene_id: []const u8) !void {
+    try program.dispatcher.setActive(scene_id);
+}
 
 const EntityTargetTag = enum {
     id,
@@ -426,7 +370,7 @@ const EntityTargetType = union(EntityTargetTag) {
 };
 
 pub fn removeEntity(target: EntityTargetType) void {
-    const ascene = eventloop.active_scene orelse return;
+    const ascene = program.dispatcher.active_scene orelse return;
     switch (target) {
         .id => |id| ascene.removeEntityById(id),
         .uuid => |target_uuid| ascene.removeEntityByUuid(target_uuid),
@@ -506,107 +450,7 @@ pub const allocators = struct {
 // CoerceTo
 // --------------------------------------------------------------------------------------------------------------
 
-fn safeIntCast(comptime T: type, value2: anytype) T {
-    if (std.math.maxInt(T) < value2) {
-        return std.math.maxInt(T);
-    }
-    if (std.math.minInt(T) > value2) {
-        return std.math.minInt(T);
-    }
-
-    return @intCast(value2);
-}
-
-/// # coerceTo
-/// The quick way to change types for ints, floats, booleans, enums, and pointers.
-/// Currently:
-/// - `int`, `comptime_int` can be cast to:
-///     - other `int` types (e.g. `i32` -> `i64`)
-///     - `float`
-///     - `bool`
-///     - `enum`
-///     - `pointer` (this case the input integer is taken as the address)
-/// - `float`, `comptime_float` can be cast to:
-///     - `int`
-///     - other `float` types
-///     - `bool`
-///     - `enum`
-/// - `bool` can be cast to:
-///     - `int`
-///     - `float`
-///     - `bool`
-///     - `enum`
-/// - `enum` can be cast to:
-///     - `int`
-///     - `float`
-///     - `bool`
-///     - other `enum` types
-/// - `pointer` can be cast to:
-///     - `int`, the address will become the int's value
-///     - other `pointer` types (e.g. `*anyopaque` -> `*i32`)
-pub inline fn coerceTo(comptime TypeTarget: type, value: anytype) ?TypeTarget {
-    const valueType = @TypeOf(value);
-    if (valueType == TypeTarget) return value;
-
-    const value_info = @typeInfo(valueType);
-
-    return switch (@typeInfo(TypeTarget)) {
-        .int, .comptime_int => switch (value_info) {
-            .int, .comptime_int => @intCast(
-                safeIntCast(TypeTarget, value),
-            ),
-            .float, .comptime_float => @intFromFloat(
-                @max(
-                    @as(valueType, @floatFromInt(std.math.minInt(TypeTarget))),
-                    @min(@as(valueType, @floatFromInt(std.math.maxInt(TypeTarget))), @round(value)),
-                ),
-            ),
-            .bool => @as(TypeTarget, @intFromBool(value)),
-            .@"enum" => @as(TypeTarget, @intFromEnum(value)),
-            .pointer => safeIntCast(TypeTarget, @as(usize, @intFromPtr(value))),
-            else => null,
-        },
-        .float, .comptime_float => switch (value_info) {
-            .int, .comptime_int => @as(TypeTarget, @floatFromInt(value)),
-            .float, .comptime_float => @as(TypeTarget, @floatCast(value)),
-            .bool => @as(TypeTarget, @floatFromInt(@intFromBool(value))),
-            .@"enum" => @as(TypeTarget, @floatFromInt(@intFromEnum(value))),
-            .pointer => @as(TypeTarget, @floatFromInt(@as(usize, @intFromPtr(value)))),
-            else => null,
-        },
-        .bool => switch (value_info) {
-            .int, .comptime_int => value != 0,
-            .float, .comptime_float => @as(isize, @intFromFloat(@round(value))) != 0,
-            .bool => value,
-            .@"enum" => @as(isize, @intFromEnum(value)) != 0,
-            .pointer => @as(usize, @intFromPtr(value)) != 0,
-            else => null,
-        },
-        .@"enum" => switch (value_info) {
-            .int, .comptime_int => @enumFromInt(value),
-            .float, .comptime_float => @enumFromInt(@as(isize, @intFromFloat(@round(value)))),
-            .bool => @enumFromInt(@intFromBool(value)),
-            .@"enum" => |enum_info| @enumFromInt(@as(enum_info.tag_type, @intFromEnum(value))),
-            .pointer => @enumFromInt(@as(usize, @intFromPtr(value))),
-            else => null,
-        },
-        .pointer => switch (value_info) {
-            .int, .comptime_int => @ptrCast(@alignCast(@as(*anyopaque, @ptrFromInt(value)))),
-            .float, .comptime_float => @compileError("Cannot convert float to pointer address"),
-            .bool => @compileError("Cannot convert bool to pointer address"),
-            .@"enum" => @compileError("Cannot convert enum to pointer address"),
-            .pointer => @ptrCast(@alignCast(value)),
-            else => null,
-        },
-        else => Catch: {
-            std.log.warn(
-                "cannot change type of \"{any}\" to type \"{any}\"",
-                .{ @TypeOf(value), TypeTarget },
-            );
-            break :Catch null;
-        },
-    };
-}
+pub const coerceTo = types.coerceTo;
 
 /// Shorthand for coerceTo
 pub inline fn tof32(value: anytype) f32 {
@@ -656,82 +500,6 @@ pub fn tou8(value: anytype) u8 {
 /// Shorthand for coerceTo
 pub fn toi8(value: anytype) i8 {
     return coerceTo(i8, value) orelse 0;
-}
-
-test coerceTo {
-    const expect = std.testing.expect;
-    const x = enum(u8) { a = 0, b = 32 };
-
-    // Check if types can be handled properly
-    try expect(coerceTo(f32, 0) != null);
-    try expect(coerceTo(i32, 0) != null);
-    try expect(coerceTo(x, 0) != null);
-    try expect(coerceTo(bool, 0) != null);
-    try expect(coerceTo(*anyopaque, 1) != null);
-
-    // Check if the correct type is returned
-    try expect(@TypeOf(coerceTo(f32, 0).?) == f32);
-    try expect(@TypeOf(coerceTo(i32, 0).?) == i32);
-    try expect(@TypeOf(coerceTo(x, 0).?) == x);
-    try expect(@TypeOf(coerceTo(*anyopaque, 1).?) == *anyopaque);
-
-    // Check if ints get converted correctly
-    var int: usize = 32;
-    const int_address: usize = @intFromPtr(&int);
-    const @"comptime_int": comptime_int = 32;
-
-    try expect(coerceTo(usize, -1).? == @as(usize, 0));
-    try expect(coerceTo(u8, std.math.maxInt(u128)).? == @as(u8, 255));
-    try expect(coerceTo(isize, int).? == @as(isize, 32));
-    try expect(coerceTo(f32, int).? == @as(f32, 32.0));
-    try expect(coerceTo(x, int).? == @as(x, x.b));
-    try expect(coerceTo(bool, int).? == @as(bool, true));
-    try expect(coerceTo(*usize, int_address).? == &int);
-
-    try expect(coerceTo(isize, @"comptime_int").? == @as(isize, 32));
-    try expect(coerceTo(f32, @"comptime_int").? == @as(f32, 32.0));
-    try expect(coerceTo(x, @"comptime_int").? == @as(x, x.b));
-    try expect(coerceTo(bool, @"comptime_int").? == @as(bool, true));
-
-    // Check if floats get converted correctly
-    const float: f64 = 32.34;
-    const @"comptime_float": comptime_float = 32.34;
-
-    try expect(coerceTo(isize, float).? == @as(isize, 32));
-    try expect(coerceTo(u8, std.math.floatMax(f128)).? == @as(u8, 255));
-    try expect(coerceTo(f32, float).? == @as(f32, 32.34));
-    try expect(coerceTo(x, float).? == @as(x, x.b));
-    try expect(coerceTo(bool, float).? == @as(bool, true));
-
-    try expect(coerceTo(isize, @"comptime_float").? == @as(isize, 32));
-    try expect(coerceTo(f32, @"comptime_float").? == @as(f32, 32.34));
-    try expect(coerceTo(x, @"comptime_float").? == @as(x, x.b));
-    try expect(coerceTo(bool, @"comptime_float").? == @as(bool, true));
-
-    // Check if enums get converted correctly
-    const @"enum": x = x.b;
-
-    try expect(coerceTo(isize, @"enum").? == @as(isize, 32));
-    try expect(coerceTo(f32, @"enum").? == @as(f32, 32.0));
-    try expect(coerceTo(x, @"enum").? == @as(x, x.b));
-    try expect(coerceTo(bool, @"enum").? == @as(bool, true));
-
-    // Check if bools get converted correctly
-    const boolean: bool = false;
-
-    try expect(coerceTo(isize, boolean).? == @as(isize, 0));
-    try expect(coerceTo(f32, boolean).? == @as(f32, 0.0));
-    try expect(coerceTo(x, boolean).? == @as(x, x.a));
-    try expect(coerceTo(bool, boolean).? == @as(bool, false));
-
-    // Pointer
-    const anyopaque_ptr_of_int: *anyopaque = @ptrCast(@alignCast(&int));
-
-    try expect(coerceTo(usize, &int) == int_address);
-    try expect(coerceTo(f64, &int) == @as(f64, @floatFromInt(int_address)));
-    try expect(coerceTo(bool, &int) == (int_address != 0));
-    try expect(coerceTo(x, @as(*anyopaque, @ptrFromInt(32))) == @"enum");
-    try expect(coerceTo(*usize, anyopaque_ptr_of_int) == &int);
 }
 
 // Vector Types
@@ -847,9 +615,4 @@ pub fn randColor() rl.Color {
 
 pub fn randFloat(comptime T: type, min: T, max: T) T {
     return random.float(T) * (max - min) + min;
-}
-
-pub fn cloneToOwnedSlice(comptime T: type, allocator: std.mem.Allocator, list: std.ArrayList(T)) ![]T {
-    var cloned = try list.clone(allocator);
-    return try cloned.toOwnedSlice(allocator);
 }

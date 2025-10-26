@@ -156,18 +156,13 @@ pub fn Update(self: *Self, _: *lm.Entity) !void {
         animation.incrementCurrentPercent(lm.toi32(interpolation_factor * 100));
     }
 
-    var clone = try self.playing.toArray();
-    defer clone.deinit();
+    const playing_len = self.playing.len();
+    for (1..playing_len + 1) |j| {
+        const index = playing_len - j;
+        const item = self.playing.items()[index];
 
-    for (clone.items) |item| {
         if (item.playing) continue;
-
-        for (self.playing.items(), 0..) |anim, index| {
-            if (anim.uuid != item.uuid) continue;
-
-            _ = self.playing.swapRemove(index);
-            break;
-        }
+        _ = self.playing.swapRemove(index);
     }
 }
 

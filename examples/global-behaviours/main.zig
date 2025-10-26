@@ -14,7 +14,7 @@ pub fn main() !void {
         .asset_paths = .{ .debug = "./" },
     })({
         loom.scene("default")({
-            loom.prefabs(&.{});
+            loom.useMainCamera();
 
             loom.globalBehaviours(.{
                 Organiser{ .entity = prefabs.SpawnTarget },

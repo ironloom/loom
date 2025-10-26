@@ -11,6 +11,7 @@ pub fn main() !void {
         .asset_paths = .{ .debug = "./" },
     })({
         loom.scene("default")({
+            loom.useMainCamera();
             loom.prefabs(&.{
                 try prefabs.MovingBox(.{ .x = 0, .y = -300 }),
             });

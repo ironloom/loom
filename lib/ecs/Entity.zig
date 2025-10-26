@@ -2,7 +2,9 @@ const UUID = @import("uuid");
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
-const Behaviour = @import("./Behaviour.zig");
+const List = @import("../types/types.zig").List;
+const Array = @import("../types/types.zig").Array;
+const Behaviour = @import("./Behaviour.zig").Behaviour;
 
 const Self = @This();
 
@@ -11,8 +13,8 @@ uuid: u128,
 
 allocated_id: bool = false,
 
-prepared_components: std.ArrayList(*Behaviour),
-components: std.ArrayList(*Behaviour),
+prepared_components: List(*Behaviour(Self)),
+components: List(*Behaviour(Self)),
 alloc: Allocator,
 remove_next_frame: bool = false,
 end_dispatched: bool = false,
@@ -21,8 +23,8 @@ pub fn init(allocator: Allocator, id: []const u8) Self {
     return Self{
         .id = id,
         .uuid = UUID.v7.new(),
-        .prepared_components = .empty,
-        .components = .empty,
+        .prepared_components = .init(allocator),
+        .components = .init(allocator),
         .alloc = allocator,
     };
 }
@@ -46,51 +48,53 @@ pub fn createAllocId(allocator: Allocator, id: []const u8) !*Self {
 }
 
 pub fn deinit(self: *Self) void {
-    for (self.components.items) |item| {
-        if (!self.end_dispatched)
-            item.callSafe(.end, self);
-        self.alloc.destroy(item);
-    }
-    self.components.deinit(self.alloc);
+    self.dispatchEvent(.end);
 
-    for (self.prepared_components.items) |item| {
-        if (!self.end_dispatched)
-            item.callSafe(.end, self);
+    for (self.components.items()) |item| {
         self.alloc.destroy(item);
     }
-    self.prepared_components.deinit(self.alloc);
+    self.components.deinit();
+
+    for (self.prepared_components.items()) |item| {
+        item.deinit();
+        self.alloc.destroy(item);
+    }
+    self.prepared_components.deinit();
 
     if (self.allocated_id) {
         self.alloc.free(self.id);
-        self.id = "[INVALID - FREED]";
     }
+
+    self.* = undefined;
+}
+
+pub fn destroy(self: *Self) void {
+    const alloc = self.alloc;
+
+    self.deinit();
+    alloc.destroy(self);
 }
 
 pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {
-    if (self.prepared_components.items.len == 0) return;
+    if (self.prepared_components.len() == 0) return;
 
-    for (self.prepared_components.items) |component| {
-        try self.components.append(self.alloc, component);
+    for (self.prepared_components.items()) |component| {
+        try self.components.append(component);
     }
 
-    if (dispatch_events) for (self.prepared_components.items) |item| {
+    if (dispatch_events) for (self.prepared_components.items()) |item| {
         item.callSafe(.awake, self);
         item.callSafe(.start, self);
     };
 
-    self.prepared_components.clearAndFree(self.alloc);
-}
-
-pub fn destroy(self: *Self) void {
-    self.deinit();
-    self.alloc.destroy(self);
+    self.prepared_components.clearAndFree();
 }
 
 pub fn addComponent(self: *Self, component: anytype) !void {
-    const ptr = try self.alloc.create(Behaviour);
-    ptr.* = try Behaviour.init(component);
+    const ptr = try self.alloc.create(Behaviour(Self));
+    ptr.* = try Behaviour(Self).init(component);
 
-    try self.prepared_components.append(self.alloc, ptr);
+    try self.prepared_components.append(ptr);
 }
 
 pub fn addComponents(self: *Self, components: anytype) !void {
@@ -100,7 +104,7 @@ pub fn addComponents(self: *Self, components: anytype) !void {
 }
 
 pub fn getComponent(self: *Self, comptime T: type) ?*T {
-    for (self.components.items) |component| {
+    for (self.components.items()) |component| {
         if (component.isType(T)) return component.castBack(T);
     }
     return null;
@@ -111,7 +115,7 @@ fn UnsafeReult(comptime T: type) type {
         initalised: bool = false,
         result: ?*T,
 
-        pub fn init(from: *Behaviour) UnsafeReult(T) {
+        pub fn init(from: *Behaviour(Self)) UnsafeReult(T) {
             return UnsafeReult(T){
                 .initalised = from.initalised,
                 .result = from.castBack(T),
@@ -120,7 +124,6 @@ fn UnsafeReult(comptime T: type) type {
 
         pub fn unwrap(self: UnsafeReult(T)) !*T {
             return self.result orelse err: {
-                std.log.err("Unwrap failed: {any}", .{T});
                 break :err error.ComponentNotFound;
             };
         }
@@ -130,10 +133,10 @@ fn UnsafeReult(comptime T: type) type {
 /// This function can return uninitalised components.
 /// A component gets initalised when `Awake` is called, but this method can access it before the event is dispatched. **Use with care.**
 pub fn getComponentUnsafe(self: *Self, comptime T: type) UnsafeReult(T) {
-    for (self.components.items) |component| {
+    for (self.components.items()) |component| {
         if (component.isType(T)) return UnsafeReult(T).init(component);
     }
-    for (self.prepared_components.items) |component| {
+    for (self.prepared_components.items()) |component| {
         if (component.isType(T)) return UnsafeReult(T).init(component);
     }
     return UnsafeReult(T){ .result = null };
@@ -141,24 +144,24 @@ pub fn getComponentUnsafe(self: *Self, comptime T: type) UnsafeReult(T) {
 
 pub fn pullComponent(self: *Self, comptime T: type) !*T {
     return self.getComponent(T) orelse err: {
-        std.log.err("[{s}@{x}] Missing component: {any}", .{ self.id, self.uuid, T });
         break :err error.ComponentNotFound;
     };
 }
 
-pub fn getComponents(self: *Self, comptime T: type) ![]*T {
-    var list = std.ArrayList(*T).init(self.alloc);
+pub fn getComponents(self: *Self, comptime T: type) !Array(*T) {
+    var list: List(*T) = .init(self.alloc);
+    defer list.deinit();
 
-    for (self.components.items) |component| {
+    for (self.components.items()) |component| {
         if (!component.isType(T)) continue;
         try list.append(component.castBack(T) orelse continue);
     }
 
-    return list.toOwnedSlice();
+    return try list.toArray();
 }
 
 pub fn removeComponent(self: *Self, comptime T: type) void {
-    for (self.components.items) |component| {
+    for (self.components.items()) |component| {
         if (!component.isType(T) and !component.marked_for_removal) continue;
 
         component.marked_for_removal = true;
@@ -167,27 +170,29 @@ pub fn removeComponent(self: *Self, comptime T: type) void {
 }
 
 pub fn removeComponents(self: *Self, comptime T: type) void {
-    for (self.components.items) |component| {
+    for (self.components.items()) |component| {
         if (!component.isType(T)) continue;
 
         component.marked_for_removal = true;
     }
 }
 
-pub fn dispatchEvent(self: *Self, event: Behaviour.Events) void {
+pub fn dispatchEvent(self: *Self, event: Behaviour(Self).Events) void {
     if (event == .end) self.end_dispatched = true;
 
-    for (self.components.items) |item| {
+    for (self.components.items()) |item| {
         item.callSafe(event, self);
     }
 
-    const len = self.components.items.len;
+    const len = self.components.len();
     for (1..len + 1) |j| {
         const index = len - j;
-        const item = self.components.items[index];
+        const item = self.components.items()[index];
 
         if (item.marked_for_removal) {
             _ = self.components.swapRemove(index);
+            item.deinit();
+            self.alloc.destroy(item);
         }
     }
 }

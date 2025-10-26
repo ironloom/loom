@@ -11,7 +11,7 @@ camera: ?*lm.Camera = null,
 
 pub fn Awake(self: *Self, entity: *lm.Entity) !void {
     self.transform = try entity.pullComponent(lm.Transform);
-    self.camera = lm.activeScene().?.getCamera("main");
+    self.camera = lm.activeScene().?.getCameraById("main");
 }
 
 pub fn Update(self: *Self) !void {

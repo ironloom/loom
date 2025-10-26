@@ -1,6 +1,6 @@
 const std = @import("std");
 const loom = @import("../root.zig");
-const rl = loom.rl;
+const rl = @import("raylib");
 
 const Transform = @import("./Transform.zig");
 const Vector2 = loom.Vector2;
@@ -276,7 +276,7 @@ pub const RectangleCollider = struct {
         try self.recalculatePoints();
     }
 
-    pub fn Update(self: *Self, entity: *loom.Entity) !void {
+    pub fn Tick(self: *Self, entity: *loom.Entity) !void {
         const colliders = collidables orelse return error.CollidablesWasNotInitalised;
 
         if (self.type != .dynamic and self.type != .trigger) return;

@@ -11,6 +11,8 @@ pub fn main() !void {
         .asset_paths = .{ .debug = "./" },
     })({
         loom.scene("default")({
+            loom.useMainCamera();
+
             loom.prefabs(&.{
                 try prefabs.Dummy(.init(0, 0)),
             });

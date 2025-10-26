@@ -1,10 +1,15 @@
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
-const loom = @import("../root.zig");
+const List = @import("List.zig").List;
+const iterator_functions = @import("iterator_functions.zig");
 
-const coerceTo = loom.coerceTo;
-const cloneToOwnedSlice = loom.cloneToOwnedSlice;
+const coerceTo = @import("type_switcher.zig").coerceTo;
+
+pub fn cloneArrayListToOwnedSlice(comptime T: type, allocator: std.mem.Allocator, list: std.ArrayList(T)) ![]T {
+    var cloned = try list.clone(allocator);
+    return try cloned.toOwnedSlice(allocator);
+}
 
 pub const ArrayOptions = struct {
     allocator: Allocator = std.heap.page_allocator,
@@ -26,246 +31,176 @@ pub fn Array(comptime T: type) type {
         };
 
         alloc: Allocator = std.heap.page_allocator,
-        items: []T,
+        slice: []T,
 
-        pub fn create(tuple: anytype) Self {
-            return Self.init(tuple, .{}) catch unreachable;
-        }
-
-        pub fn init(tuple: anytype, options: ArrayOptions) !Self {
-            var list: std.ArrayList(T) = .empty;
-            defer list.deinit(options.allocator);
-
-            inline for (tuple) |item| {
-                const item_value = @as(
-                    ?T,
-                    if (T != @TypeOf(item))
-                        switch (options.try_type_change) {
-                            true => coerceTo(T, item) orelse switch (options.on_type_change_fail) {
-                                .ignore => null,
-                                .err => {
-                                    std.log.err(
-                                        "[Array.init] Tuple had items of incorrect type in it. (With current options this causes a panic!)\n" ++
-                                            "\t\tTry setting the options.on_type_change_fail value to .ignore to avoid this error." ++
-                                            "\t\tNOTE: .ignore will just skip the incorrect values.",
-                                        .{},
-                                    );
-                                    return Error.TypeChangeFailiure;
-                                },
-                                .panic => @panic("[Array.init] type change failed and resulted in panic"),
-                            },
-                            false => {
-                                std.log.err(
-                                    "[Array.init] Tuple had items of incorrect type. (With current options this causes an error!)\n" ++
-                                        "\t\tTry setting the options.try_type_change value to true to avoid this error.",
-                                    .{},
-                                );
-                                return Error.IncorrectElementType;
-                            },
-                        }
-                    else
-                        item,
-                );
-
-                if (item_value) |c| {
-                    try list.append(options.allocator, c);
-                }
-            }
-
-            const new_slice = try list.toOwnedSlice(options.allocator);
+        pub fn init(allocator: std.mem.Allocator, initial_items: []const T) !Self {
+            const allocated = try allocator.alloc(T, initial_items.len);
+            std.mem.copyForwards(T, allocated, initial_items);
 
             return Self{
-                .alloc = options.allocator,
-                .items = new_slice,
-            };
-        }
-
-        pub fn fromArray(arr: []T, alloc: ?Allocator) !Self {
-            const allocator = alloc orelse std.heap.smp_allocator;
-
-            const new = try allocator.alloc(T, arr.len);
-            std.mem.copyForwards(T, new, arr);
-
-            return Self{
-                .items = new,
                 .alloc = allocator,
-            };
-        }
-
-        pub fn fromConstArray(arr: []const T, alloc: ?Allocator) !Self {
-            const allocator = alloc orelse std.heap.smp_allocator;
-
-            const new = try allocator.alloc(T, arr.len);
-            std.mem.copyForwards(T, new, arr);
-
-            return Self{
-                .items = new,
-                .alloc = allocator,
+                .slice = allocated,
             };
         }
 
         pub fn fromArrayList(allocator: Allocator, arr: std.ArrayList(T)) !Self {
             return Self{
-                .items = try cloneToOwnedSlice(T, allocator, arr),
+                .slice = try cloneArrayListToOwnedSlice(T, allocator, arr),
                 .alloc = allocator,
             };
         }
 
-        pub fn fromList(list: loom.List(T)) !Self {
+        pub fn fromList(list: List(T)) !Self {
             return try Self.fromArrayList(list.allocator, list.arrlist);
         }
 
+        pub fn deinit(self: *Self) void {
+            self.alloc.free(self.slice);
+            self.* = undefined;
+        }
+
+        pub inline fn items(self: Self) []T {
+            return self.slice;
+        }
+
+        pub inline fn len(self: Self) usize {
+            return self.slice.len;
+        }
+
+        fn getSafeIndex(self: Self, index: anytype) ?usize {
+            var _index = coerceTo(isize, index) orelse return null;
+
+            if (_index < 0) _index = @as(isize, @intCast(self.len())) + _index;
+
+            if (self.len() == 0 or _index > self.len() - 1 or _index < 0)
+                return null;
+
+            return @intCast(@max(0, _index));
+        }
+
+        pub inline fn at(self: Self, index: anytype) ?T {
+            return self.slice[self.getSafeIndex(index) orelse return null];
+        }
+
         pub fn clone(self: Self) !Self {
-            const new = try self.alloc.alloc(T, self.items.len);
-            std.mem.copyForwards(T, new, self.items);
+            const new = try self.alloc.alloc(T, self.slice.len);
+            std.mem.copyForwards(T, new, self.slice);
 
             return Self{
-                .items = new,
+                .slice = new,
                 .alloc = self.alloc,
             };
         }
 
-        pub fn eqls(self: Self, other: anytype) bool {
-            const K = @TypeOf(other);
-            if (K == Self) {
-                return std.mem.eql(T, self.items, @field(other, "items"));
-            }
-            if (K == []T) {
-                return std.mem.eql(T, self.items, other);
-            }
+        pub fn eql(self: Self, other: Self) bool {
+            if (self.len() != other.len()) return false;
 
-            return std.meta.eql(self.items, other);
-        }
-
-        pub fn reverse(self: Self) !Self {
-            const new = try self.alloc.alloc(T, self.items.len);
-
-            for (0..self.items.len) |jndex| {
-                const index = self.items.len - 1 - jndex;
-
-                new[jndex] = self.items[index];
+            for (0..self.len()) |index| {
+                if (!std.meta.eql(self.at(index), other.at(index)))
+                    return false;
             }
 
-            return Self{
-                .items = new,
-                .alloc = self.alloc,
-            };
+            return true;
         }
 
-        pub fn map(self: Self, comptime R: type, map_fn: fn (T) anyerror!R) !Array(R) {
-            var arrlist = std.ArrayList(R).empty;
-            defer arrlist.deinit(self.alloc);
-
-            for (self.items) |item| {
-                try arrlist.append(self.alloc, try map_fn(item));
-            }
-
-            return Array(R){
-                .items = try cloneToOwnedSlice(R, self.alloc, arrlist),
-                .alloc = self.alloc,
-            };
+        pub fn set(self: *Self, index: anytype, value: T) void {
+            self.slice[self.getSafeIndex(index) orelse return] = value;
         }
 
-        pub fn reduce(self: Self, comptime R: type, reduce_fn: fn (accumulator: R, current: T) anyerror!R, initial_value: R) R {
-            var value: R = initial_value;
-
-            for (self.items) |item| value = reduce_fn(value, item) catch continue;
-
-            return value;
+        pub inline fn getFirst(self: Self) T {
+            return self.slice[0];
         }
 
-        pub fn forEach(self: *Self, func: fn (T) anyerror!void) void {
-            for (self.items) |item| {
-                func(item) catch {};
-            }
+        pub inline fn getLast(self: Self) T {
+            return self.slice[self.len() - 1];
         }
 
-        pub fn len(self: Self) usize {
-            return self.items.len;
-        }
-
-        pub fn lastIndex(self: Self) usize {
-            return self.len() - 1;
-        }
-
-        pub fn at(self: Self, index: usize) ?T {
-            if (self.len() == 0 or index > self.lastIndex())
-                return null;
-
-            return self.items[index];
-        }
-
-        pub fn ptrAt(self: Self, index: usize) ?*T {
-            if (self.len() == 0 or index > self.lastIndex())
-                return null;
-
-            return &(self.items[index]);
-        }
-
-        pub fn set(self: Self, index: usize, value: T) void {
-            const ptr = self.ptrAt(index) orelse return;
-            ptr.* = value;
-        }
-
-        pub fn getFirst(self: Self) ?T {
+        pub inline fn getFirstOrNull(self: Self) ?T {
             return self.at(0);
         }
 
-        pub fn getLast(self: Self) ?T {
-            return self.at(self.lastIndex());
+        pub inline fn getLastOrNull(self: Self) ?T {
+            return self.at(-1);
         }
 
-        pub fn getFirstPtr(self: Self) ?*T {
-            return self.ptrAt(0);
+        pub fn clearAndFree(self: *Self) void {
+            self.alloc.free(self.slice);
+            self.slice.len = 0;
         }
 
-        pub fn getLastPtr(self: Self) ?*T {
-            return self.ptrAt(self.lastIndex());
-        }
-
-        /// Caller owns the returned memory.
-        pub fn ownedSlice(self: Self, from: usize, to: usize) !Self {
-            const start = @min(@min(from, to), self.lastIndex());
-            const end = @min(@max(from, to), self.lastIndex());
-
-            return try Self.fromArray(self.items[start..end], self.alloc);
-        }
-
-        /// Caller owns the returned memory. Does empty the array.
-        pub fn toOwnedSlice(self: Self) ![]T {
-            defer self.deinit();
-
+        /// Caller owns the returned memory. Does empty the array. Makes `deinit` safe, but unnecessary to call.
+        pub fn toOwnedSlice(self: *Self) ![]T {
             const new_slice = try self.alloc.alloc(T, self.len());
-            std.mem.copyForwards(T, new_slice, self.items);
+            @memcpy(new_slice, self.slice);
+            self.clearAndFree();
+
+            return new_slice;
+        }
+
+        pub fn cloneToOwnedSlice(self: Self) ![]T {
+            const new_slice = try self.alloc.alloc(T, self.len());
+            @memcpy(new_slice, self.slice);
 
             return new_slice;
         }
 
         pub fn toArrayList(self: Self) !std.ArrayList(T) {
-            const list = try std.ArrayList(T).initCapacity(self.alloc, self.len());
-
-            @memcpy(list.items, self.items);
+            var list = try std.ArrayList(T).initCapacity(self.alloc, self.len());
+            try list.appendSlice(self.alloc, self.items());
 
             return list;
         }
 
-        pub fn deinit(self: Self) void {
-            self.alloc.free(self.items);
+        pub inline fn toList(self: Self) !List(T) {
+            return .fromArray(self);
+        }
+
+        pub inline fn map(self: Self, R: type, mapping_function: iterator_functions.MappingFn(T, R)) !Array(R) {
+            return Array(R){
+                .alloc = self.alloc,
+                .slice = try iterator_functions.map(
+                    T,
+                    R,
+                    self.alloc,
+                    self.items(),
+                    mapping_function,
+                ),
+            };
+        }
+
+        pub inline fn reduce(self: Self, R: type, initial: R, reduce_function: iterator_functions.ReduceFn(T, R)) R {
+            return iterator_functions.reduce(T, R, self.items(), initial, reduce_function);
+        }
+
+        pub inline fn filter(self: Self, criteria: iterator_functions.FilterCriteriaFn(T)) !Self {
+            return Self{
+                .alloc = self.alloc,
+                .slice = try iterator_functions.filter(
+                    T,
+                    self.alloc,
+                    self.items(),
+                    criteria,
+                ),
+            };
+        }
+
+        pub inline fn forEach(self: Self, foreach_function: iterator_functions.ForEachFn(T)) !void {
+            try iterator_functions.forEach(T, self.items(), foreach_function);
         }
     };
 }
 
-pub fn array(comptime T: type, tuple: anytype) Array(T) {
-    return Array(T).init(tuple, .{}) catch unreachable;
+pub fn array(comptime T: type, items: []const T) Array(T) {
+    return Array(T).init(std.heap.smp_allocator, items) catch unreachable;
 }
 
 pub fn arrayAdvanced(
     comptime T: type,
-    options: ArrayOptions,
-    tuple: anytype,
+    allocator: Allocator,
+    tuple: []const T,
 ) Array(T) {
     return Array(T).init(
+        allocator,
         tuple,
-        options,
     ) catch unreachable;
 }

@@ -14,13 +14,17 @@ TAG                     | MEANING
 @test                   | unit test changes
 @input                  | user input / input device information - input.zig
 
+
 +----------------------------------[FINISHED]---------------------------------+
+
 
 +v0.1.0
 x 2025-06-06 rewrite collision system
 
+
 +v0.1.1
 x 2025-06-09 fix summoning mess
+
 
 +v0.1.2
 x 2025-06-09 change Prefabs to be comptime again
@@ -30,9 +34,11 @@ x 2025-06-09 change Prefabs to be comptime again
             get an Entity.
 x 2025-06-09 update readme.md with install instructions
 
+
 +v0.1.3 
 x 2025-06-09 add: display sorting based on y-index @display
 x 2025-06-09 add: example for Z-Y display sorting @examples
+
 
 +v0.1.4
 x 2025-06-09 fix: removeComponent @ecs
@@ -40,17 +46,21 @@ x 2025-06-09 update: project(void)(void) to project(ProjectConfig)(void) @root
 x 2025-06-09 chore: clean up root.zig @root 
 x 2025-06-09 update(readme): use #stable branch as package base @repo 
 
+
 +v0.2.0 release:minor
 x 2025-06-09 release: v0.2.0 @release
 
+
 +0.2.1
 x 2025-06-10 fix: collider rotation
+
 
 +v0.3.0 release:minor
 x 2025-06-10 add: global behaviours @ecs 
     NOTE:   Global behaviours are scene scoped. They are not tied to entities
             only the executing scene.
 x 2025-06-11 add: unit tests for Array(T) @test
+
 
 +v0.4.0 :: The Audio Update release:minor
 x 2025-06-11 add: Audio asset streaming @assets
@@ -60,9 +70,11 @@ x 2025-06-11 add: audio interface:
             other params. This way the user does not need to keep track of the 
             allocated memory and loaded assets.
 
+
 +v0.5.0 :: Update to zig v0.15.1 + deps release:minor
 x 2025-09-23 update: zig version 
 x 2025-09-23 add: loom.List(T)
+
 
 +v0.6.0 :: Input Update release:minor
     GOAL:   the goal of this update is to get complete feature parity with 
@@ -75,8 +87,8 @@ x 2025-09-25 update: input.mouse & input.keyboard @input
 x 2025-09-25 add: input.gamepad @input
     NOTE:   Possibly with raylib, but it might need a 3rd party workaround.
 
-+v0.7.0 :: The Rendering Update relase:minor
 
++v0.7.0 :: The Rendering Update relase:minor
 x 2025-09-25 new: Camera system @display
     NOTE:   the game should be able to handle render contexts. Each camera 
             should have it's own RenderTexture, which it targets. Cameras 
@@ -85,11 +97,72 @@ x 2025-09-25 new: Camera system @display
 x 2025-09-25 add: shader support for vertex and fragment shaders
 x 2025-09-25 add: new camera management config
 
-+--------------------------------[IN_PROGRESS]--------------------------------+
 
++v0.8.0-v0.8.1 :: Dockerfile release:minor
+x 2025-10-14 new: dockerfile to test multi-platform building
+
+
++v0.9.0 :: Unit Tests relase:minor
+x 2025-10-14 add: unit test the List(T) type @test
+x 2025-10-14 add: unit test the Array(T) type @test
+    NOTE:   this will require the removal of Array(T).fromTuple(), to 
+            streamline the Array(T) processing.
+x 2025-10-15 add: unit test for the ECS @test
+x 2025-10-15 fix: SharedPointer(T) and add unit tests @test
+    NOTE:   this might come with a minor assets refactor as well.
+x 2025-10-21 add: Scene unit tests @test
+x 2025-10-21 add: SceneController.zig unit tests @test
+
++--------------------------------[IN_PROGRESS]--------------------------------+
 
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
++v0.10.0 :: The Drawing Update release:minor
+    GOAL:   Create a centralised, instancable drawing module with UI & texture 
+            drawing support, while also implementing a raylib abstraction 
+            layer, which seperated all RL code from loom.
 
+            Planned namespaced/types:
+
+            bridge/
+                Pen.zig     
+                    The rendering abstraction layer between loom and RL, 
+                    this is great for testing, since in builtin.is_test can 
+                    ignore most of the incompatibe stuff.
+            drawing/
+                ui.zig      
+                    The clay wrapper abstraction layer.
+                Canvas.zig (ui/clay_rl_backend refactor)
+                    Instancable renderer to render UIs to a target camera. 
+                    Canvases will be used by Scenes to have UI rendering 
+                    streamlined.
+                Camera.zig
+                    Much similar to the current Camera.zig, but using Pen 
+                    abstractions. 
+            builtin-components/
+                CameraBind.zig
+                    Same as CameraTarget.zig, but renamed to reflect the 
+                    purpose better
+                TextureRenderer.zig
+                    Builtin way of rendering textures to a given/all Camera(s)
+            eventloop/
+                SceneController.zig (changed)
+                    Move root/drawing into execute(). 
+                    Allow Pen render commands to be executed while update 
+                    loop is running.
+
+update: rework display.zig @display
 add: debug ui @tooling
+add: unit tests for new drawing module @test
+
++v0.11.0 
+add: custom Vector2(T) & Vector3(T) types
+add: user setting for tick rate
+
++unknown-update
+rework: asset handling
+add: assets unit tests @test
+
++unknown-update
+switch to using sokol-zig instead of raylib

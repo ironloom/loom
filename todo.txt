@@ -130,6 +130,9 @@ x 2025-10-21 add: SceneController.zig unit tests @test
                     The rendering abstraction layer between loom and RL, 
                     this is great for testing, since in builtin.is_test can 
                     ignore most of the incompatibe stuff.
+                Pens/
+                    RLPen.zig
+                        Pen implementation for raylib.
             drawing/
                 ui.zig      
                     The clay wrapper abstraction layer.

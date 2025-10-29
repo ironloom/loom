@@ -29,6 +29,9 @@ var seed: u64 = undefined;
 var xoshiro: std.Random.Xoshiro256 = .init(0);
 pub var random: std.Random = xoshiro.random();
 
+const Pen = @import("bridge/Pen.zig").Pen;
+pub const pen = @import("bridge/Pens/RLPen.zig").RLPen(std.heap.smp_allocator);
+
 pub const Vector2 = rl.Vector2;
 pub const Vector3 = rl.Vector3;
 pub const Vector4 = rl.Vector4;

@@ -1,0 +1,8 @@
+.zig-cache/
+zig-out/
+
+**.zsh
+
+.VSCodeCounter/
+.DS_Store
+.vscode/

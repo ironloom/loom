@@ -1,6 +1,6 @@
 <div align="center" alt="loom">
     <img src="./resources/loom_logo_1376x512.png" width="688">
-    <p>The declarative, ECS-based game engine, written in zig.</p>
+    <p>The declarative, Unity-like game engine, written in zig.</p>
 </div>
 
 ---

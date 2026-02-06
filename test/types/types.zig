@@ -3,5 +3,4 @@ test {
     _ = @import("Array.zig");
     _ = @import("type_switcher.zig");
     _ = @import("iterator_functions.zig");
-    _ = @import("SharedPointer.zig");
 }

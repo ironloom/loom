@@ -51,6 +51,7 @@ pub fn deinit(self: *Self) void {
     self.dispatchEvent(.end);
 
     for (self.components.items()) |item| {
+        item.deinit();
         self.alloc.destroy(item);
     }
     self.components.deinit();

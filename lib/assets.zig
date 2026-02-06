@@ -4,8 +4,6 @@ const Allocator = @import("std").mem.Allocator;
 const loom = @import("./root.zig");
 const rl = @import("raylib");
 
-const SharedPointer = loom.SharedPointer;
-
 const builtin = @import("builtin");
 
 const Image = rl.Image;
@@ -75,13 +73,42 @@ pub const files = struct {
     }
 };
 
+fn RefCounter(comptime T: type) type {
+    return struct {
+        value: *T,
+        counter: usize,
+        alloc: Allocator,
+
+        pub fn init(allocator: Allocator, value: T) !RefCounter(T) {
+            const allocated_value = try allocator.create(T);
+            allocated_value.* = value;
+
+            return RefCounter(T){
+                .counter = 1,
+                .value = allocated_value,
+                .alloc = allocator,
+            };
+        }
+
+        pub fn deinit(self: *RefCounter(T)) void {
+            self.alloc.destroy(self.value);
+            self.* = undefined;
+        }
+
+        pub fn get(self: *RefCounter(T)) *T {
+            self.counter += 1;
+            return self.value;
+        }
+    };
+}
+
 fn AssetCache(
     comptime T: type,
     comptime parsefn: *const fn (data: []const u8, filetype: []const u8, path: []const u8, mod: []const i32) anyerror!T,
     comptime releasefn: *const fn (data: T) void,
 ) type {
     return struct {
-        const HashMapType = std.AutoHashMap(u64, *SharedPointer(T));
+        const HashMapType = std.AutoHashMap(u64, RefCounter(T));
         var hash_map: ?HashMapType = null;
 
         fn hashMap() *HashMapType {
@@ -96,16 +123,13 @@ fn AssetCache(
             var iter = hmap.iterator();
 
             while (iter.next()) |entry| {
-                const sptr = entry.value_ptr.*;
+                var ref_counter = entry.value_ptr.*;
 
-                if (sptr.value) |v|
-                    releasefn(v);
+                releasefn(ref_counter.value.*);
+                ref_counter.counter = 0;
 
-                sptr.value = null;
-                sptr.ref_count = 0;
-
-                sptr.destroy() catch {};
                 _ = hmap.remove(entry.key_ptr.*);
+                ref_counter.deinit();
             }
 
             hmap.deinit();
@@ -155,24 +179,22 @@ fn AssetCache(
 
             const parsed: T = try parsefn(data, filetype, rel_path, modifiers);
 
-            try hmap.put(HASH, try SharedPointer(T).create(loom.allocators.generic(), parsed));
+            try hmap.put(HASH, try .init(loom.allocators.generic(), parsed));
         }
 
         pub fn release(rel_path: []const u8, modifiers: []const i32) void {
             const path_hash = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
             const hmap = hashMap();
 
-            const shared_pointer = hmap.get(path_hash) orelse return;
+            var ref_counter = hmap.getPtr(path_hash) orelse return;
 
-            shared_pointer.removeRef();
+            ref_counter.counter -= 1;
 
-            if (shared_pointer.ref_count > 0)
+            if (ref_counter.counter > 0)
                 return;
 
-            if (shared_pointer.value) |v|
-                releasefn(v);
-
-            shared_pointer.destroy() catch unreachable;
+            releasefn(ref_counter.value.*);
+            ref_counter.deinit();
             _ = hmap.remove(path_hash);
         }
 
@@ -182,8 +204,7 @@ fn AssetCache(
             const entry: HashMapType.Entry = Blk: {
                 var iter = hmap.iterator();
                 while (iter.next()) |entry| {
-                    const value_ptr = entry.value_ptr.*.getRef();
-                    defer entry.value_ptr.*.removeRef();
+                    const value_ptr = entry.value_ptr.*.value;
 
                     if (loom.coerceTo(usize, value_ptr) != loom.coerceTo(usize, ptr)) continue;
                     break :Blk entry;
@@ -191,19 +212,17 @@ fn AssetCache(
                 break :Blk null;
             } orelse return;
 
-            const shared_pointer = entry.value_ptr.*;
+            const ref_counter = entry.value_ptr;
             const entry_hash = entry.key_ptr.*;
 
-            shared_pointer.removeRef();
+            ref_counter.counter -= 1;
 
-            if (shared_pointer.ref_count > 0) {
+            if (ref_counter.counter > 0)
                 return;
-            }
 
-            if (shared_pointer.value) |v|
-                releasefn(v);
+            releasefn(ref_counter.value.*);
+            ref_counter.deinit();
 
-            shared_pointer.destroy() catch unreachable;
             _ = hmap.remove(entry_hash);
         }
 
@@ -212,11 +231,11 @@ fn AssetCache(
 
             const hmap = hashMap();
 
-            const res1 = hmap.get(HASH);
-            if (res1) |r1| return r1.getRef();
+            const res1 = hmap.getPtr(HASH);
+            if (res1) |r1| return r1.get();
 
             store(rel_path, modifiers) catch return null;
-            return if (hmap.get(HASH)) |r| r.getRef() else null;
+            return if (hmap.getPtr(HASH)) |r| r.get() else null;
         }
     };
 }

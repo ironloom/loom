@@ -23,7 +23,6 @@ pub const window = @import("window.zig");
 pub const types = @import("types/types.zig");
 pub const Array = types.Array;
 pub const List = types.List;
-pub const SharedPointer = types.SharedPointer;
 
 var seed: u64 = undefined;
 var xoshiro: std.Random.Xoshiro256 = .init(0);

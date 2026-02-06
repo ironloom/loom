@@ -115,6 +115,19 @@ x 2025-10-21 add: SceneController.zig unit tests @test
 
 +--------------------------------[IN_PROGRESS]--------------------------------+
 
++v0.9.1 :: QoL Improvements
+    GOAL:   Fix bugs and improve the quality of life while using loom.
+
+x 2026-02-06 add: lm.deprecate @root
+x 2026-02-06 add: lm.assert & lm.assertFmt @root
+x 2026-02-06 deprecate: lm.summon -> lm.summoning @root
+x 2026-02-06 remove: SharedPointer @types
+    NOTE:   SharedPointer was removed due to it being a mess. Now it is
+            replaced by and internal RefCounter impl, only used by lm.assets.
+x 2026-02-06 fix: ecs/Behaviour memccpy -> memcpy (memory bug) @ecs
+x 2026-02-06 fix: typo in builtin-components/collision.zig @builtin-components
+x 2026-02-06 update: make eventloop/Scene.zig way more readable
+
 
 +-----------------------------------[TO_DO]-----------------------------------+
 

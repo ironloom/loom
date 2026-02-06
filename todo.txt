@@ -113,8 +113,6 @@ x 2025-10-15 fix: SharedPointer(T) and add unit tests @test
 x 2025-10-21 add: Scene unit tests @test
 x 2025-10-21 add: SceneController.zig unit tests @test
 
-+--------------------------------[IN_PROGRESS]--------------------------------+
-
 +v0.9.1 :: QoL Improvements
     GOAL:   Fix bugs and improve the quality of life while using loom.
 
@@ -128,11 +126,14 @@ x 2026-02-06 fix: ecs/Behaviour memccpy -> memcpy (memory bug) @ecs
 x 2026-02-06 fix: typo in builtin-components/collision.zig @builtin-components
 x 2026-02-06 update: make eventloop/Scene.zig way more readable
 
++--------------------------------[IN_PROGRESS]--------------------------------+
+
+
 
 +-----------------------------------[TO_DO]-----------------------------------+
 
 +v0.10.0 :: The Drawing Update release:minor
-    GOAL:   Create a centralised, instancable drawing module with UI & texture 
+    GOAL:   Create a centralised, initializable drawing module with UI & texture 
             drawing support, while also implementing a raylib abstraction 
             layer, which seperated all RL code from loom.
 

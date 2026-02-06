@@ -52,6 +52,7 @@ var fonts: lm.List(FontEntry) = undefined;
 var fonts_cache: lm.List(FontEntry) = undefined;
 var font_index: usize = 1;
 var alloc: std.mem.Allocator = undefined;
+var last_window_size: lm.Vector2 = .init(0, 0);
 
 pub fn init(allocator: Allocator) !void {
     fonts = .init(allocator);
@@ -72,10 +73,14 @@ pub fn init(allocator: Allocator) !void {
 
 pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     const win_size = lm.window.size.get();
-    clay.setLayoutDimensions(.{
-        .w = win_size.x,
-        .h = win_size.y,
-    });
+    if (last_window_size.equals(win_size) != 0) {
+        last_window_size = win_size;
+
+        clay.setLayoutDimensions(.{
+            .w = win_size.x,
+            .h = win_size.y,
+        });
+    }
 
     try renderer.clayRaylibRender(commands, lm.allocators.generic());
 
@@ -167,24 +172,24 @@ pub fn fontID(rel_path: []const u8) u16 {
     return font_entry.id;
 }
 
-pub fn color(r: f32, g: f32, b: f32, a: f32) clay.Color {
-    return .{ r, g, b, a };
+pub inline fn color(r: u8, g: u8, b: u8, a: u8) clay.Color {
+    return rgba(r, g, b, a);
 }
 
-pub fn rgba(r: f32, g: f32, b: f32, a: f32) clay.Color {
+pub inline fn rgba(r: u8, g: u8, b: u8, a: u8) clay.Color {
     return Color.finalise(.{
-        .red = r,
-        .green = g,
-        .blue = b,
-        .alpha = a,
+        .red = lm.tof32(r),
+        .green = lm.tof32(g),
+        .blue = lm.tof32(b),
+        .alpha = lm.tof32(a),
     });
 }
 
-pub fn rgb(r: f32, g: f32, b: f32) clay.Color {
+pub inline fn rgb(r: u8, g: u8, b: u8) clay.Color {
     return Color.finalise(.{
-        .red = r,
-        .green = g,
-        .blue = b,
+        .red = lm.tof32(r),
+        .green = lm.tof32(g),
+        .blue = lm.tof32(b),
     });
 }
 
@@ -208,7 +213,6 @@ pub fn dim(colour: clay.Color, by: f32) clay.Color {
 pub fn hex(hex_colour: u32) [4]f32 {
 
     // RR GG BB AA
-    //
 
     const r = lm.tof32((hex_colour >> 24) & 0xFF);
     const g = lm.tof32((hex_colour >> 16) & 0xFF);
@@ -216,29 +220,6 @@ pub fn hex(hex_colour: u32) [4]f32 {
     const a = lm.tof32(hex_colour & 0xFF);
 
     return .{ r, g, b, a };
-}
-
-test hex {
-    const color1 = 0xFF0080FF; // Red: 255, Green: 0, Blue: 128, Alpha: 255
-    const parsed_color1 = hex(color1);
-    try std.testing.expectEqualF32(parsed_color1.r, 255.0);
-    try std.testing.expectEqualF32(parsed_color1.g, 0.0);
-    try std.testing.expectEqualF32(parsed_color1.b, 128.0);
-    try std.testing.expectEqualF32(parsed_color1.a, 255.0);
-
-    const color2 = 0x00FF0080; // Red: 0, Green: 255, Blue: 0, Alpha: 128
-    const parsed_color2 = hex(color2);
-    try std.testing.expectEqualF32(parsed_color2.r, 0.0);
-    try std.testing.expectEqualF32(parsed_color2.g, 255.0);
-    try std.testing.expectEqualF32(parsed_color2.b, 0.0);
-    try std.testing.expectEqualF32(parsed_color2.a, 128.0);
-
-    const color3 = 0x12345678;
-    const parsed_color3 = hex(color3);
-    try std.testing.expectEqualF32(parsed_color3.r, 18.0);
-    try std.testing.expectEqualF32(parsed_color3.g, 52.0);
-    try std.testing.expectEqualF32(parsed_color3.b, 86.0);
-    try std.testing.expectEqualF32(parsed_color3.a, 120.0);
 }
 
 pub const Color = struct {

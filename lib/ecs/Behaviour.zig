@@ -60,7 +60,7 @@ pub fn Behaviour(comptime T: type) type {
 
         pub fn duplicate(self: Self) !Self {
             const c_ptr = std.c.malloc(self.cache_size) orelse return Error.OutOfMemory;
-            _ = c.memccpy(c_ptr, self.cache, @intCast(self.cache_size), @intCast(1));
+            _ = c.memcpy(c_ptr, self.cache, @intCast(self.cache_size));
 
             var new = Self{
                 .cache = c_ptr,

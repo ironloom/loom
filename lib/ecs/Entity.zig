@@ -51,6 +51,7 @@ pub fn deinit(self: *Self) void {
     self.dispatchEvent(.end);
 
     for (self.components.items()) |item| {
+        item.deinit();
         self.alloc.destroy(item);
     }
     self.components.deinit();
@@ -151,13 +152,17 @@ pub fn pullComponent(self: *Self, comptime T: type) !*T {
 pub fn getComponents(self: *Self, comptime T: type) !Array(*T) {
     var list: List(*T) = .init(self.alloc);
     defer list.deinit();
+    errdefer list.deinit();
 
     for (self.components.items()) |component| {
         if (!component.isType(T)) continue;
         try list.append(component.castBack(T) orelse continue);
     }
 
-    return try list.toArray();
+    const result = try list.toArray();
+    errdefer result.deinit();
+
+    return result;
 }
 
 pub fn removeComponent(self: *Self, comptime T: type) void {

@@ -77,40 +77,26 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn load(self: *Self) !void {
-    defer self.is_active = true;
-
-    for (self.default_cameras.items()) |camera_config| {
-        _ = try self.addCamera(camera_config.id, camera_config.options);
+const loading = struct {
+    pub inline fn createCameras(self: *Self) !void {
+        for (self.default_cameras.items()) |camera_config| {
+            _ = try self.addCamera(camera_config.id, camera_config.options);
+        }
     }
 
-    for (self.prefabs.items()) |prefabs| {
-        const entity = try prefabs.makeInstance();
-        try entity.addPreparedComponents(false);
+    pub inline fn createEntitiesFromPrefabs(self: *Self) !void {
+        for (self.prefabs.items()) |prefabs| {
+            const entity = try prefabs.makeInstance();
+            errdefer entity.deinit();
 
-        try self.entities.append(entity);
+            try entity.addPreparedComponents(false);
+
+            try self.entities.append(entity);
+        }
     }
 
-    if (self.default_behaviours.len() != 0) {
-        for (self.behaviours.items()) |behaviour| {
-            behaviour.callSafe(.end, self);
-        }
-
-        const behaviour_len = self.behaviours.len();
-        for (1..behaviour_len + 1) |j| {
-            const index = behaviour_len - j;
-            const item = self.behaviours.items()[index];
-
-            item.deinit();
-            _ = self.behaviours.swapRemove(index);
-        }
-
-        if (self.default_behaviours.len() <= self.behaviours.capacity()) {
-            self.behaviours.clearRetainingCapacity();
-        } else {
-            self.behaviours.clearAndFree();
-        }
-
+    pub inline fn createGlobalBehaviourInstances(self: *Self) !void {
+        self.behaviours.clearRetainingCapacity();
         for (self.default_behaviours.items()) |behaviour| {
             const ptr = try self.alloc.create(lm.GlobalBehaviour);
             ptr.* = try behaviour.duplicate();
@@ -119,73 +105,130 @@ pub fn load(self: *Self) !void {
         }
     }
 
-    for (self.behaviours.items()) |behaviour| {
-        behaviour.callSafe(.awake, self);
+    pub inline fn callGlobalBehaviourAwakeAndStart(self: *Self) void {
+        for (self.behaviours.items()) |behaviour| {
+            behaviour.callSafe(.awake, self);
+        }
+
+        for (self.behaviours.items()) |behaviour| {
+            behaviour.callSafe(.start, self);
+        }
     }
 
-    for (self.behaviours.items()) |behaviour| {
-        behaviour.callSafe(.start, self);
+    pub inline fn callEntityAwakeAndStart(self: *Self) void {
+        for (self.entities.items()) |entity| {
+            entity.dispatchEvent(.awake);
+        }
+
+        for (self.entities.items()) |entity| {
+            entity.dispatchEvent(.start);
+        }
+    }
+};
+
+const unloading = struct {
+    pub inline fn dispacthEntityEnd(self: *Self) void {
+        for (self.entities.items()) |item| {
+            item.remove_next_frame = true;
+            item.dispatchEvent(.end);
+        }
     }
 
-    for (self.entities.items()) |entity| {
-        entity.dispatchEvent(.awake);
+    pub inline fn dispatchGlobalBehaviourEnd(self: *Self) void {
+        for (self.behaviours.items()) |behaviour| {
+            behaviour.callSafe(.end, self);
+        }
     }
 
-    for (self.entities.items()) |entity| {
-        entity.dispatchEvent(.start);
+    pub inline fn dispatchEnd(self: *Self) void {
+        dispacthEntityEnd(self);
+        dispatchGlobalBehaviourEnd(self);
     }
+
+    pub inline fn destoryEntities(self: *Self) void {
+        const entities_len = self.entities.len();
+        for (1..entities_len + 1) |j| {
+            const index = entities_len - j;
+            const item = self.entities.items()[index];
+
+            item.destroy();
+            _ = self.entities.swapRemove(index);
+        }
+    }
+
+    pub inline fn destoryNewEntities(self: *Self) void {
+        const new_entities_len = self.new_entities.len();
+        for (1..new_entities_len + 1) |j| {
+            const index = new_entities_len - j;
+            const item = self.new_entities.items()[index];
+
+            item.destroy();
+            _ = self.new_entities.swapRemove(index);
+        }
+    }
+
+    pub inline fn destoryGlobalBehaviourInstances(self: *Self) void {
+        const behaviour_len = self.behaviours.len();
+        for (1..behaviour_len + 1) |j| {
+            const index = behaviour_len - j;
+            const item = self.behaviours.items()[index];
+
+            item.deinit();
+            self.alloc.destroy(item);
+
+            _ = self.behaviours.swapRemove(index);
+        }
+    }
+
+    pub inline fn destroyCameraInstances(self: *Self) void {
+        for (self.cameras.items()) |camera| {
+            camera.deinit();
+            self.alloc.destroy(camera);
+        }
+    }
+
+    pub inline fn clearInstanceLists(self: *Self) void {
+        self.entities.clearAndFree();
+        self.new_entities.clearAndFree();
+        self.behaviours.clearAndFree();
+        self.cameras.clearAndFree();
+    }
+};
+
+pub fn load(self: *Self) !void {
+    defer self.is_active = true;
+    errdefer self.is_active = false;
+
+    try loading.createCameras(self);
+    errdefer unloading.destroyCameraInstances(self);
+
+    try loading.createEntitiesFromPrefabs(self);
+    errdefer unloading.destoryEntities(self);
+
+    if (self.default_behaviours.len() != 0) {
+        unloading.dispatchGlobalBehaviourEnd(self);
+        unloading.destoryGlobalBehaviourInstances(self);
+
+        try loading.createGlobalBehaviourInstances(self);
+    }
+    errdefer if (self.behaviours.len() > 0) {
+        unloading.dispatchGlobalBehaviourEnd(self);
+        unloading.destoryGlobalBehaviourInstances(self);
+    };
+
+    loading.callGlobalBehaviourAwakeAndStart(self);
+    loading.callEntityAwakeAndStart(self);
 }
 
 pub fn unload(self: *Self) void {
     defer self.is_active = false;
 
-    for (self.entities.items()) |item| {
-        item.remove_next_frame = true;
-        item.dispatchEvent(.end);
-    }
-
-    for (self.behaviours.items()) |behaviour| {
-        behaviour.callSafe(.end, self);
-    }
-
-    const entities_len = self.entities.len();
-    for (1..entities_len + 1) |j| {
-        const index = entities_len - j;
-        const item = self.entities.items()[index];
-
-        item.destroy();
-        _ = self.entities.swapRemove(index);
-    }
-
-    const new_entities_len = self.new_entities.len();
-    for (1..new_entities_len + 1) |j| {
-        const index = new_entities_len - j;
-        const item = self.new_entities.items()[index];
-
-        item.destroy();
-        _ = self.new_entities.swapRemove(index);
-    }
-
-    const behaviour_len = self.behaviours.len();
-    for (1..behaviour_len + 1) |j| {
-        const index = behaviour_len - j;
-        const item = self.behaviours.items()[index];
-
-        item.deinit();
-        self.alloc.destroy(item);
-
-        _ = self.behaviours.swapRemove(index);
-    }
-
-    self.entities.clearAndFree();
-    self.new_entities.clearAndFree();
-
-    for (self.cameras.items()) |camera| {
-        camera.deinit();
-        self.alloc.destroy(camera);
-    }
-
-    self.cameras.clearAndFree();
+    unloading.dispatchEnd(self);
+    unloading.destoryEntities(self);
+    unloading.destoryNewEntities(self);
+    unloading.destoryGlobalBehaviourInstances(self);
+    unloading.destroyCameraInstances(self);
+    unloading.clearInstanceLists(self);
 }
 
 pub fn execute(self: *Self) void {

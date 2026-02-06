@@ -1,6 +1,5 @@
 pub const Array = @import("Array.zig").Array;
 pub const List = @import("List.zig").List;
-pub const SharedPointer = @import("SharedPointer.zig").SharedPointer;
 
 pub const coerceTo = @import("type_switcher.zig").coerceTo;
 

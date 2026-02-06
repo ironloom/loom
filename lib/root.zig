@@ -81,6 +81,23 @@ pub fn quit() void {
     program.running = false;
 }
 
+pub fn assert(statement: bool, comptime fail_msg: []const u8) void {
+    assertFmt(statement, fail_msg, .{});
+}
+
+pub fn assertFmt(statement: bool, comptime fail_msg: []const u8, fmt: anytype) void {
+    if (statement) return;
+
+    std.log.err(fail_msg, fmt);
+    @panic("ASSERTION FAILIURE");
+}
+
+pub fn deprecated(comptime msg: []const u8) void {
+    if (builtin.is_test) return;
+
+    @compileError("[DEPRECATED] " ++ msg);
+}
+
 // Creating the project
 // --------------------------------------------------------------------------------------------------------------
 
@@ -297,6 +314,7 @@ const SummonUnion = union(SummonTag) {
 };
 
 pub fn summon(entities_prefabs: []const SummonUnion) !void {
+    deprecated("loom.summon is deprecated, use loom.summoning instead");
     const ascene = program.dispatcher.active_scene orelse return;
 
     for (entities_prefabs) |value| {
@@ -306,6 +324,27 @@ pub fn summon(entities_prefabs: []const SummonUnion) !void {
         }
     }
 }
+
+pub const summoning = struct {
+    pub inline fn entity(subject: *Entity) !void {
+        const ascene = activeScene() orelse return;
+        try ascene.addEntity(subject);
+    }
+
+    pub inline fn entities(subjects: []const *Entity) !void {
+        const ascene = activeScene() orelse return;
+        for (subjects) |subject| try ascene.addEntity(subject);
+    }
+
+    pub inline fn prefab(subject: Prefab) !void {
+        try entities(try subject.makeInstance());
+    }
+
+    pub inline fn prefabs(subjects: []const Prefab) !void {
+        const ascene = activeScene() orelse return;
+        for (subjects) |subject| try ascene.addEntity(try subject.makeInstance());
+    }
+};
 
 pub fn makeEntity(id: []const u8, components: anytype) !*Entity {
     const ptr = try Entity.create(allocators.generic(), id);

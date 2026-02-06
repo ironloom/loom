@@ -113,14 +113,14 @@ pub const RectangleCollider = struct {
         transform: Transform = .{},
         type: ColliderType = .static,
         weight: f32 = 1,
-        onCollidion: ?*const fn (self: *loom.Entity, other: *loom.Entity) anyerror!void = null,
+        onCollision: ?*const fn (self: *loom.Entity, other: *loom.Entity) anyerror!void = null,
     }) Self {
         return Self{
             .collider_transform = config.transform,
             .last_collider_transform = config.transform,
             .type = config.type,
             .weight = config.weight,
-            .onCollision = config.onCollidion,
+            .onCollision = config.onCollision,
         };
     }
 

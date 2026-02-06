@@ -79,6 +79,11 @@ pub fn deinit(self: *Self) void {
 
 pub fn load(self: *Self) !void {
     defer self.is_active = true;
+    errdefer {
+        self.is_active = false;
+        self.entities.clearAndFree();
+        self.behaviours.clearAndFree();
+    }
 
     for (self.default_cameras.items()) |camera_config| {
         _ = try self.addCamera(camera_config.id, camera_config.options);

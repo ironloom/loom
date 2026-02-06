@@ -3,7 +3,7 @@ const loom = @import("loom");
 
 const Self = @This();
 
-entity: *const fn (position: loom.Vector2) anyerror!*loom.Entity,
+entityFactory: *const fn (position: loom.Vector2) anyerror!*loom.Entity,
 amount: usize = 100,
 transform: ?*loom.Transform = null,
 
@@ -14,12 +14,10 @@ pub fn Start(self: *Self, entity: *loom.Entity) !void {
 pub fn Update(self: *Self) !void {
     if (loom.keyboard.getKeyDown(.f)) {
         for (0..self.amount) |_| {
-            try loom.summon(&.{.{
-                .entity = try self.entity(loom.Vec2(
-                    loom.random.intRangeAtMost(isize, 0, 1280),
-                    loom.random.intRangeAtMost(isize, 0, 720),
-                )),
-            }});
+            try loom.summoning.entity(try self.entityFactory(loom.Vec2(
+                loom.random.intRangeAtMost(isize, 0, 1280),
+                loom.random.intRangeAtMost(isize, 0, 720),
+            )));
         }
     }
 

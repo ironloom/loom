@@ -15,7 +15,7 @@ pub fn Spawner(comptime position: loom.Vector3) !loom.Prefab {
             .type = .dynamic,
         }),
         Spawn{
-            .entity = SpawnTarget,
+            .entityFactory = SpawnTarget,
         },
     });
 }

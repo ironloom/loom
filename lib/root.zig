@@ -33,6 +33,7 @@ pub const Vector3 = rl.Vector3;
 pub const Vector4 = rl.Vector4;
 pub const Rectangle = rl.Rectangle;
 pub const Color = rl.Color;
+pub const Texture = rl.Texture;
 
 pub const ecs = @import("ecs/ecs.zig");
 pub const GlobalBehaviour = ecs.Behaviour(Scene);
@@ -44,7 +45,17 @@ pub const eventloop = @import("eventloop/eventloop.zig");
 pub const Scene = eventloop.Scene;
 pub const SceneController = eventloop.SceneController;
 
-pub const UUIDv7 = uuid.v7.new;
+pub fn UUIDv7() u128 {
+    var result: u128 = 0;
+    const generated = uuid.Uuid.v7(io.singleThreaded()) catch return 0;
+
+    for (generated.bytes, 0..) |byte, index| {
+        const current: u128 = byte;
+        result |= current << @intCast(128 - 8 - index * 8);
+    }
+
+    return result;
+}
 
 pub const Dimensions = clay.Dimensions;
 
@@ -65,6 +76,7 @@ pub const display = @import("display.zig");
 pub const time = @import("time.zig");
 pub const input = @import("input.zig");
 pub const ui = @import("ui/ui.zig");
+pub const sort = @import("sort.zig");
 
 pub const keyboard = input.keyboard;
 pub const mouse = input.mouse;
@@ -132,6 +144,8 @@ pub const ProjectConfig = struct {
 pub fn project(config: ProjectConfig) *const fn (void) void {
     rl.setTraceLogLevel(config.raylib_log_level);
 
+    io.init();
+
     time.init();
 
     window.init();
@@ -164,9 +178,7 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
     ui.init(allocators.arena()) catch @panic("UI INIT FAILED");
     program.dispatcher = .init(allocators.arena());
 
-    std.posix.getrandom(std.mem.asBytes(&seed)) catch {
-        seed = coerceTo(u64, rl.getTime()).?;
-    };
+    seed = coerceTo(u64, rl.getTime()).?;
     xoshiro = std.Random.DefaultPrng.init(seed);
     random = xoshiro.random();
 
@@ -252,6 +264,8 @@ fn projectLoopAndDeinit(_: void) void {
     if (allocators.AI_arena.interface) |arena| {
         arena.deinit();
     }
+
+    io.deinit();
 }
 
 pub fn scene(id: []const u8) *const fn (void) void {
@@ -483,6 +497,45 @@ pub const allocators = struct {
 
         pub const free = std.c.free;
     };
+};
+
+pub const io = struct {
+    fn IoInstance(comptime T: type) type {
+        return struct {
+            interface: ?T = null,
+            io: ?std.Io = null,
+        };
+    }
+
+    var backing_single_threaded: IoInstance(std.Io.Threaded) = .{};
+    var backing_threaded: IoInstance(std.Io.Threaded) = .{};
+
+    pub fn init() void {
+        backing_single_threaded.interface = .init_single_threaded;
+        backing_single_threaded.io = backing_single_threaded.interface.?.io();
+
+        backing_threaded.interface = .init(allocators.generic(), .{});
+        backing_threaded.io = backing_threaded.interface.?.io();
+    }
+
+    pub fn deinit() void {
+        if (backing_single_threaded.interface) |*interface| interface.deinit();
+        if (backing_threaded.interface) |*interface| interface.deinit();
+    }
+
+    pub fn singleThreaded() std.Io {
+        return backing_single_threaded.io orelse blk: {
+            init();
+            break :blk backing_single_threaded.io.?;
+        };
+    }
+
+    pub fn threaded() std.Io {
+        return backing_threaded.io orelse blk: {
+            init();
+            break :blk backing_threaded.io.?;
+        };
+    }
 };
 
 // CoerceTo

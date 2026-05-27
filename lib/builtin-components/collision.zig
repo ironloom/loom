@@ -297,10 +297,10 @@ pub const RectangleCollider = struct {
             try self.recalculateRotation();
             self.recalculateDeltas();
             try self.recalculatePoints();
-        } else if (self.collider_transform.scale.equals(self.last_collider_transform.scale) == 0) {
+        } else if (!self.collider_transform.scale.equals(self.last_collider_transform.scale)) {
             self.recalculateDeltas();
             try self.recalculatePoints();
-        } else if (self_last_transform.position.equals(self_transform.position) == 0 or self.last_collider_transform.position.equals(self.collider_transform.position) == 0)
+        } else if (!self_last_transform.position.equals(self_transform.position) or !self.last_collider_transform.position.equals(self.collider_transform.position))
             try self.recalculatePoints();
 
         for (colliders.items()) |other| {
@@ -322,10 +322,10 @@ pub const RectangleCollider = struct {
                 try other.recalculateRotation();
                 other.recalculateDeltas();
                 try other.recalculatePoints();
-            } else if (other.collider_transform.scale.equals(other.last_collider_transform.scale) == 0) {
+            } else if (!other.collider_transform.scale.equals(other.last_collider_transform.scale)) {
                 other.recalculateDeltas();
                 try other.recalculatePoints();
-            } else if (other_last_transform.position.equals(other_transform.position) == 0 or other.last_collider_transform.position.equals(other.collider_transform.position) == 0)
+            } else if (!other_last_transform.position.equals(other_transform.position) or !other.last_collider_transform.position.equals(other.collider_transform.position))
                 try other.recalculatePoints();
 
             if (!self.overlaps(other)) continue;

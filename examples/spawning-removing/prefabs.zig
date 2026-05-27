@@ -10,7 +10,7 @@ pub fn Spawner(comptime position: loom.Vector3) !loom.Prefab {
             .position = position,
             .rotation = 45,
         },
-        loom.Renderer.sprite("./resources/loom_logo_43x16.png"),
+        loom.Renderer.sprite("resources/loom_logo_43x16.png"),
         loom.RectangleCollider.initConfig(.{
             .type = .dynamic,
         }),

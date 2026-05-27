@@ -266,14 +266,14 @@ pub const restore_state = struct {
     pub fn save() !void {
         if (!use) return;
 
-        const exepath = try std.fs.selfExeDirPathAlloc(loom.allocators.generic());
+        const exepath = try std.process.executableDirPathAlloc(loom.io.singleThreaded(), loom.allocators.generic());
         defer loom.allocators.generic().free(exepath);
 
         const path = try std.fmt.allocPrint(loom.allocators.generic(), "{s}{s}{s}", .{ exepath, std.fs.path.sep_str, ".loom.winstate" });
         defer loom.allocators.generic().free(path);
 
-        var file = try std.fs.createFileAbsolute(path, .{});
-        defer file.close();
+        var file = try std.Io.Dir.cwd().createFile(loom.io.singleThreaded(), path, .{});
+        defer file.close(loom.io.singleThreaded());
 
         const win_size = size.get();
         const win_size_x: u16 = @bitCast(@as(i16, @intFromFloat(@min(
@@ -295,7 +295,8 @@ pub const restore_state = struct {
             @round(win_pos.y),
         ))));
 
-        var writer_root = file.writer(&.{});
+        var buffer: [1024]u8 = [_]u8{0} ** 1024;
+        var writer_root = file.writer(loom.io.singleThreaded(), &buffer);
         var writer = &writer_root.interface;
 
         try writer.writeByte(loom.coerceTo(u8, win_pos_x >> 8) orelse 0);
@@ -319,17 +320,21 @@ pub const restore_state = struct {
     pub fn load() !void {
         if (!use) return;
 
-        const exepath = try std.fs.selfExeDirPathAlloc(loom.allocators.generic());
+        const exepath = try std.process.executableDirPathAlloc(loom.io.singleThreaded(), loom.allocators.generic());
         defer loom.allocators.generic().free(exepath);
 
         const path = try std.fmt.allocPrint(loom.allocators.generic(), "{s}{s}{s}", .{ exepath, std.fs.path.sep_str, ".loom.winstate" });
         defer loom.allocators.generic().free(path);
 
-        var file = try std.fs.openFileAbsolute(path, .{ .mode = .read_only });
-        defer file.close();
+        var file = try std.Io.Dir.cwd().openFile(
+            loom.io.singleThreaded(),
+            path,
+            .{ .mode = .read_only },
+        );
+        defer file.close(loom.io.singleThreaded());
 
         var buffer: [2048]u8 = std.mem.zeroes([2048]u8);
-        var reader_root = file.reader(&buffer);
+        var reader_root = file.reader(loom.io.singleThreaded(), &buffer);
         var reader = &reader_root.interface;
 
         const pos_x_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };

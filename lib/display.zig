@@ -44,7 +44,7 @@ pub fn deinit() void {
 }
 
 pub fn add(r: Renderer) !void {
-    if (r.transform.scale.equals(loom.vec2()) == 1) return;
+    if (r.transform.scale.equals(loom.vec2())) return;
     const buf = &(buffer orelse return);
 
     try buf.append(allocator, r);

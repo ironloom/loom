@@ -63,7 +63,7 @@ pub fn init(allocator: Allocator) !void {
     const min_memory_size: usize = lm.coerceTo(usize, clay.minMemorySize()).?;
     memory = try alloc.alloc(u8, min_memory_size);
 
-    const arena: clay.Arena = clay.createArenaWithCapacityAndMemory(memory);
+    const arena: clay.Arena = .init(memory);
 
     _ = clay.initialize(arena, .{ .h = 1280, .w = 720 }, .{});
     clay.setMeasureTextFunction(void, {}, renderer.measureText);
@@ -73,7 +73,7 @@ pub fn init(allocator: Allocator) !void {
 
 pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     const win_size = lm.window.size.get();
-    if (last_window_size.equals(win_size) != 0) {
+    if (!last_window_size.equals(win_size)) {
         last_window_size = win_size;
 
         clay.setLayoutDimensions(.{

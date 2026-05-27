@@ -1,6 +1,7 @@
-const UUID = @import("uuid");
+const UUID = @import("uuid").Uuid;
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
+const lm = @import("../root.zig");
 
 const List = @import("../types/types.zig").List;
 const Array = @import("../types/types.zig").Array;
@@ -22,7 +23,7 @@ end_dispatched: bool = false,
 pub fn init(allocator: Allocator, id: []const u8) Self {
     return Self{
         .id = id,
-        .uuid = UUID.v7.new(),
+        .uuid = lm.UUIDv7(),
         .prepared_components = .init(allocator),
         .components = .init(allocator),
         .alloc = allocator,

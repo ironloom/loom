@@ -32,19 +32,31 @@ pub const files = struct {
 
     pub fn getBase() ![]const u8 {
         const exepath = switch (builtin.mode) {
-            .Debug => try std.fs.cwd().realpathAlloc(loom.allocators.generic(), "."),
-            else => try std.fs.selfExeDirPathAlloc(loom.allocators.generic()),
+            .Debug => try std.Io.Dir.cwd().realPathFileAlloc(
+                loom.io.singleThreaded(),
+                ".",
+                loom.allocators.generic(),
+            ),
+            else => try std.process.executablePathAlloc(
+                loom.io.singleThreaded(),
+                loom.allocators.generic(),
+            ),
         };
         defer loom.allocators.generic().free(exepath);
 
         const path = try std.fmt.allocPrint(loom.allocators.generic(), "{s}{s}{s}", .{
-            exepath, std.fs.path.sep_str, switch (builtin.mode) {
+            exepath, std.fs.path.sep_str,
+            switch (builtin.mode) {
                 .Debug => paths.debug,
                 else => paths.release,
             },
         });
+        defer loom.allocators.generic().free(path);
 
-        return path;
+        const result = try std.Io.Dir.cwd().realPathFileAlloc(loom.io.singleThreaded(), path, loom.allocators.generic());
+        defer loom.allocators.generic().free(result);
+
+        return std.fmt.allocPrint(loom.allocators.generic(), "{s}", .{result});
     }
 
     pub fn getFilePath(rel_path: []const u8) ![]const u8 {
@@ -66,10 +78,17 @@ pub const files = struct {
         const real_path = try getFilePath(pth);
         defer loom.allocators.generic().free(real_path);
 
-        const reader = try std.fs.openFileAbsolute(real_path, .{});
-        defer reader.close();
+        const read_file = try std.Io.Dir.cwd().openFile(
+            loom.io.singleThreaded(),
+            real_path,
+            .{ .mode = .read_only },
+        );
+        defer read_file.close(loom.io.singleThreaded());
 
-        return reader.readToEndAlloc(loom.allocators.generic(), 8 * 1024 * 1024 * 512);
+        var buffer: [1024]u8 = [_]u8{0} ** 1024;
+        var reader = read_file.reader(loom.io.singleThreaded(), &buffer);
+
+        return try reader.interface.allocRemaining(loom.allocators.generic(), .unlimited);
     }
 };
 

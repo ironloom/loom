@@ -8,7 +8,7 @@
 **loom** wraps [raylib-zig](https://github.com/raylib-zig/raylib-zig) and uses [johan0A](https://github.com/johan0A)'s [clay-zig-bindings](https://github.com/johan0A/clay-zig-bindings) for UI.
 
 > [!important]
-> This project uses zig version `0.15.2` and Raylib `5.6-dev`.
+> This project uses zig version `0.16.0` and Raylib `6.0`.
 
 The engine aims to provide a declarative interface for game development – we call it a _"code only Unity"_, since all you need is a few lines of code to configure scenes, entities, cameras, and behaviours.
 

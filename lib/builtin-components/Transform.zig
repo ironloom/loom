@@ -19,10 +19,7 @@ pub fn eql(self: Self, other: Self) bool {
 }
 
 pub fn eqlSkipPosition(self: Self, other: Self) bool {
-    if (self.rotation != other.rotation) return false;
-    if (self.scale.equals(other.scale) == 0) return false;
-
-    return true;
+    return self.rotation == other.rotation and self.scale.equals(other.scale);
 }
 
 pub fn distance(self: Self, other: Self) f32 {

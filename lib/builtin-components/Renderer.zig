@@ -95,7 +95,7 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
     const tile_size = self.tile_size orelse transform.scale;
 
     const has_to_be_updated =
-        transform.scale.equals(display_cache.transform.scale) == 0 or
+        !transform.scale.equals(display_cache.transform.scale) or
         !std.mem.eql(u8, self.img_path, display_cache.img_path) or
         display_cache.texture == null;
 

@@ -65,22 +65,6 @@ pub fn build(b: *std.Build) !void {
                 raylib.linkSystemLibrary("Xinerama", .{ .needed = true });
                 raylib.linkSystemLibrary("Xrandr", .{ .needed = true });
                 raylib.linkSystemLibrary("Xrender", .{ .needed = true });
-
-                raylib_artifact.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
-                raylib_artifact.addSystemIncludePath(system_sdk.path("linux/include"));
-
-                raylib_artifact.addLibraryPath(.{ .cwd_relative = "/usr/bin" });
-                raylib_artifact.addLibraryPath(.{ .cwd_relative = "/usr/lib/x86_64-linux-gnu" });
-                raylib_artifact.addSystemIncludePath(.{ .cwd_relative = "/usr/include/X11" });
-
-                raylib_artifact.linkSystemLibrary("GLX");
-                raylib_artifact.linkSystemLibrary("X11");
-                raylib_artifact.linkSystemLibrary("Xcursor");
-                raylib_artifact.linkSystemLibrary("Xext");
-                raylib_artifact.linkSystemLibrary("Xi");
-                raylib_artifact.linkSystemLibrary("Xinerama");
-                raylib_artifact.linkSystemLibrary("Xrandr");
-                raylib_artifact.linkSystemLibrary("Xrender");
             } else if (target.result.cpu.arch == .aarch64) {
                 loom_mod.addLibraryPath(system_sdk.path("linux/lib/aarch64-linux-gnu"));
             }
@@ -95,7 +79,7 @@ pub fn build(b: *std.Build) !void {
 
     loom_mod.addImport("uuid", uuid);
 
-    try b.modules.put("loom", loom_mod);
+    try b.modules.put(b.allocator, "loom", loom_mod);
 
     const lib = b.addLibrary(.{
         .linkage = .static,

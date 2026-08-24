@@ -240,7 +240,16 @@ pub fn execute(self: *Self) void {
         if (is_tick) behaviour.callSafe(.tick, self);
     }
 
-    for (self.new_entities.items()) |entity| {
+    const new_len = self.new_entities.len();
+    var current_new = lm.List(*Entity).init(self.alloc);
+    defer current_new.deinit();
+
+    for (0..new_len) |_| {
+        if (self.new_entities.len() == 0) break;
+        current_new.append(self.new_entities.swapRemove(0)) catch break;
+    }
+
+    for (current_new.items()) |entity| {
         if (entity.remove_next_frame) continue;
 
         self.entities.append(entity) catch |err| {
@@ -253,7 +262,6 @@ pub fn execute(self: *Self) void {
             continue;
         };
     }
-    self.new_entities.clearAndFree();
 
     const len = self.entities.len();
     for (1..len + 1) |b| {

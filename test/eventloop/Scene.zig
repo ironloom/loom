@@ -92,6 +92,39 @@ test "addEntity" {
     try expectEqual(0, my_scene.new_entities.len());
 }
 
+test "addEntity called by Awake/Start of newly spawned Entity's Behaviour should summon the entity" {
+    const TestBehaviour = struct {
+        scene: *Scene,
+
+        pub fn Awake(self: *@This()) !void {
+            const my_entity = try lm.Entity.create(self.scene.alloc, "my_entity2");
+            try self.scene.addEntity(my_entity);
+        }
+    };
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+
+    const my_entity = try lm.Entity.create(my_scene.alloc, "my_entity");
+    try my_entity.addComponent(TestBehaviour{ .scene = &my_scene });
+    try my_scene.addEntity(my_entity);
+
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(1, my_scene.new_entities.len());
+
+    my_scene.execute();
+
+    try expectEqual(1, my_scene.entities.len());
+    try expectEqual(1, my_scene.new_entities.len());
+
+    my_scene.execute();
+
+    try expectEqual(2, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+}
+
 test "getEntity" {
     var my_scene: Scene = .init(allocator, "my_scene");
     defer my_scene.deinit();

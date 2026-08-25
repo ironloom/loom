@@ -199,41 +199,36 @@ pub fn measureText(clay_text: []const u8, config: *cl.TextElementConfig, _: void
     const letter_spacing: f32 = @floatFromInt(config.letter_spacing);
     const line_height = config.line_height;
 
-    var temp_byte_counter: usize = 0;
-    var byte_counter: usize = 0;
-    var text_width: f32 = 0.0;
-    var temp_text_width: f32 = 0.0;
+    var max_text_width: f32 = 0.0;
+    var line_width: f32 = 0.0;
     var text_height: f32 = font_size;
-    const scale_factor: f32 = font_size / @as(f32, @floatFromInt(font.baseSize));
+    const font_base_size: f32 = @floatFromInt(font.baseSize);
+    const scale_factor: f32 = if (font_base_size > 0) font_size / font_base_size else 1.0;
 
     var utf8 = std.unicode.Utf8View.initUnchecked(text).iterator();
 
     while (utf8.nextCodepoint()) |codepoint| {
-        byte_counter += std.unicode.utf8CodepointSequenceLength(codepoint) catch 1;
-        const index: usize = @intCast(
-            rl.getGlyphIndex(font, @as(i32, @intCast(codepoint))),
-        );
-
         if (codepoint != '\n') {
-            if (font.glyphs[index].advanceX != 0) {
-                text_width += @floatFromInt(font.glyphs[index].advanceX);
-            } else {
-                text_width += font.recs[index].width + @as(f32, @floatFromInt(font.glyphs[index].offsetX));
-            }
+            const index: usize = @intCast(
+                rl.getGlyphIndex(font, @as(i32, @intCast(codepoint))),
+            );
+            const glyph_advance: f32 = if (font.glyphs[index].advanceX != 0)
+                @floatFromInt(font.glyphs[index].advanceX)
+            else
+                font.recs[index].width + @as(f32, @floatFromInt(font.glyphs[index].offsetX));
+
+            line_width += glyph_advance * scale_factor + letter_spacing;
         } else {
-            if (temp_text_width < text_width) temp_text_width = text_width;
-            byte_counter = 0;
-            text_width = 0;
+            if (max_text_width < line_width) max_text_width = line_width;
+            line_width = 0.0;
             text_height += font_size + @as(f32, @floatFromInt(line_height));
         }
-
-        if (temp_byte_counter < byte_counter) temp_byte_counter = byte_counter;
     }
 
-    if (temp_text_width < text_width) temp_text_width = text_width;
+    if (max_text_width < line_width) max_text_width = line_width;
 
     return cl.Dimensions{
         .h = text_height,
-        .w = temp_text_width * scale_factor + (@as(f32, @floatFromInt(temp_byte_counter)) - 1) * letter_spacing,
+        .w = max_text_width,
     };
 }

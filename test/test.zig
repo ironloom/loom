@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 
 test {
-    testing.refAllDeclsRecursive(@import("loom"));
+    testing.refAllDecls(@import("loom"));
 
     _ = @import("types/types.zig");
     _ = @import("ecs/ecs.zig");

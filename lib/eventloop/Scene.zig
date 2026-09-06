@@ -477,20 +477,22 @@ pub fn removeCameraByUuid(self: *Self, uuid_: u128) void {
     self.removeCamera(uuid_, uuidEqls(Camera));
 }
 
-pub fn getGlobalBehaviour(self: *Self, T: type) ?*T {
-    for (self.behaviours.items()) |*behaviour| {
+pub fn getGlobalBehaviour(self: *Self, comptime T: type) ?*T {
+    for (self.behaviours.items()) |behaviour| {
         if (behaviour.isType(T)) return behaviour.castBack(T);
     }
+    return null;
 }
-pub inline fn pullGlobalBehaviour(self: *Self, T: type) !*T {
+
+pub inline fn pullGlobalBehaviour(self: *Self, comptime T: type) !*T {
     return self.getGlobalBehaviour(T) orelse error.GlobalBehaviourNotFound;
 }
 
-pub fn pullGlobalBehaviours(self: *Self, T: type) !lm.Array(*T) {
-    var list: lm.List(*T) = .init(lm.allocators.generic());
+pub fn pullGlobalBehaviours(self: *Self, comptime T: type) !lm.Array(*T) {
+    var list: lm.List(*T) = .init(self.alloc);
     defer list.deinit();
 
-    for (self.behaviours.items()) |*behaviour| {
+    for (self.behaviours.items()) |behaviour| {
         if (behaviour.isType(T)) try list.append(behaviour.castBack(T) orelse continue);
     }
 

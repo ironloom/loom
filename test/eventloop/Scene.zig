@@ -92,6 +92,39 @@ test "addEntity" {
     try expectEqual(0, my_scene.new_entities.len());
 }
 
+test "addEntity called by Awake/Start of newly spawned Entity's Behaviour should summon the entity" {
+    const TestBehaviour = struct {
+        scene: *Scene,
+
+        pub fn Awake(self: *@This()) !void {
+            const my_entity = try lm.Entity.create(self.scene.alloc, "my_entity2");
+            try self.scene.addEntity(my_entity);
+        }
+    };
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+
+    const my_entity = try lm.Entity.create(my_scene.alloc, "my_entity");
+    try my_entity.addComponent(TestBehaviour{ .scene = &my_scene });
+    try my_scene.addEntity(my_entity);
+
+    try expectEqual(0, my_scene.entities.len());
+    try expectEqual(1, my_scene.new_entities.len());
+
+    my_scene.execute();
+
+    try expectEqual(1, my_scene.entities.len());
+    try expectEqual(1, my_scene.new_entities.len());
+
+    my_scene.execute();
+
+    try expectEqual(2, my_scene.entities.len());
+    try expectEqual(0, my_scene.new_entities.len());
+}
+
 test "getEntity" {
     var my_scene: Scene = .init(allocator, "my_scene");
     defer my_scene.deinit();
@@ -465,4 +498,150 @@ test "execute" {
     my_scene.execute();
 
     try expectEqual(2, MyComponent.counter);
+}
+
+test "getGlobalBehaviour" {
+    const TestBehaviour1 = struct {
+        value: usize = 10,
+    };
+    const TestBehaviour2 = struct {
+        value: usize = 20,
+    };
+
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try my_scene.useGlobalBehaviours(.{
+        TestBehaviour1{ .value = 42 },
+    });
+
+    // Before load(), behaviour instances are not created yet
+    try expect(my_scene.getGlobalBehaviour(TestBehaviour1) == null);
+    try expect(my_scene.getGlobalBehaviour(TestBehaviour2) == null);
+
+    try my_scene.load();
+
+    // After load(), behaviour is found and matches type
+    const behaviour = my_scene.getGlobalBehaviour(TestBehaviour1);
+    try expect(behaviour != null);
+    try expectEqual(42, behaviour.?.value);
+
+    // Mutation through pointer persists
+    behaviour.?.value = 100;
+    const same_behaviour = my_scene.getGlobalBehaviour(TestBehaviour1);
+    try expectEqual(100, same_behaviour.?.value);
+
+    // Non-existent behaviour returns null
+    try expect(my_scene.getGlobalBehaviour(TestBehaviour2) == null);
+
+    my_scene.unload();
+
+    // After unload(), behaviour instances are destroyed
+    try expect(my_scene.getGlobalBehaviour(TestBehaviour1) == null);
+}
+
+test "pullGlobalBehaviour" {
+    const TestBehaviour1 = struct {
+        value: usize = 10,
+    };
+    const TestBehaviour2 = struct {
+        value: usize = 20,
+    };
+
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try my_scene.useGlobalBehaviours(.{
+        TestBehaviour1{ .value = 55 },
+    });
+
+    // Before load(), returns error.GlobalBehaviourNotFound
+    try expectError(error.GlobalBehaviourNotFound, my_scene.pullGlobalBehaviour(TestBehaviour1));
+    try expectError(error.GlobalBehaviourNotFound, my_scene.pullGlobalBehaviour(TestBehaviour2));
+
+    try my_scene.load();
+
+    // After load(), successfully pulls the behaviour pointer
+    const behaviour = try my_scene.pullGlobalBehaviour(TestBehaviour1);
+    try expect(@TypeOf(behaviour) == *TestBehaviour1);
+    try expectEqual(55, behaviour.value);
+
+    // Mutation through pointer persists
+    behaviour.value = 77;
+    const same_behaviour = try my_scene.pullGlobalBehaviour(TestBehaviour1);
+    try expectEqual(77, same_behaviour.value);
+
+    // Non-existent behaviour returns error.GlobalBehaviourNotFound
+    try expectError(error.GlobalBehaviourNotFound, my_scene.pullGlobalBehaviour(TestBehaviour2));
+
+    my_scene.unload();
+
+    // After unload(), returns error.GlobalBehaviourNotFound
+    try expectError(error.GlobalBehaviourNotFound, my_scene.pullGlobalBehaviour(TestBehaviour1));
+}
+
+test "pullGlobalBehaviours" {
+    const TestBehaviour1 = struct {
+        value: usize = 10,
+    };
+    const TestBehaviour2 = struct {
+        value: usize = 20,
+    };
+    const NonExistent = struct {};
+
+    var my_scene: Scene = .init(allocator, "my_scene");
+    defer my_scene.deinit();
+
+    try my_scene.useGlobalBehaviours(.{
+        TestBehaviour1{ .value = 1 },
+        TestBehaviour2{ .value = 10 },
+        TestBehaviour1{ .value = 2 },
+        TestBehaviour1{ .value = 3 },
+    });
+
+    // Before load(), returns empty array
+    {
+        var behaviours = try my_scene.pullGlobalBehaviours(TestBehaviour1);
+        defer behaviours.deinit();
+        try expectEqual(0, behaviours.len());
+    }
+
+    try my_scene.load();
+
+    // Pull multiple behaviours of TestBehaviour1
+    {
+        var behaviours1 = try my_scene.pullGlobalBehaviours(TestBehaviour1);
+        defer behaviours1.deinit();
+
+        try expectEqual(3, behaviours1.len());
+        try expectEqual(1, behaviours1.items()[0].value);
+        try expectEqual(2, behaviours1.items()[1].value);
+        try expectEqual(3, behaviours1.items()[2].value);
+    }
+
+    // Pull single behaviour of TestBehaviour2
+    {
+        var behaviours2 = try my_scene.pullGlobalBehaviours(TestBehaviour2);
+        defer behaviours2.deinit();
+
+        try expectEqual(1, behaviours2.len());
+        try expectEqual(10, behaviours2.items()[0].value);
+    }
+
+    // Pull non-existent behaviour returns empty array
+    {
+        var behaviours_none = try my_scene.pullGlobalBehaviours(NonExistent);
+        defer behaviours_none.deinit();
+
+        try expectEqual(0, behaviours_none.len());
+    }
+
+    my_scene.unload();
+
+    // After unload(), returns empty array
+    {
+        var behaviours = try my_scene.pullGlobalBehaviours(TestBehaviour1);
+        defer behaviours.deinit();
+        try expectEqual(0, behaviours.len());
+    }
 }

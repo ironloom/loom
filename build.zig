@@ -116,6 +116,7 @@ pub fn build(b: *std.Build) !void {
         "gamepad",
         "cameras",
         "animator",
+        "ui",
     };
 
     const build_all_step = b.step("example=all", "");

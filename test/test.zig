@@ -8,4 +8,5 @@ test {
     _ = @import("ecs/ecs.zig");
     _ = @import("eventloop/eventloop.zig");
     _ = @import("sort.zig");
+    _ = @import("window.zig");
 }

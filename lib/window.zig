@@ -6,12 +6,33 @@ const clay = @import("zclay");
 
 var _size = loom.Vec2(860, 480);
 var _temp_size = loom.Vec2(860, 480);
+var _temp_pos: ?loom.Vector2 = null;
+var _temp_fullscreen: bool = false;
+var _temp_borderless: bool = false;
 var is_resizable = false;
 
 var is_alive = false;
 
 pub var clear_color: rl.Color = rl.Color.black;
 pub var use_debug_mode = false;
+
+pub const clearColor = struct {
+    pub inline fn set(to: rl.Color) void {
+        clear_color = to;
+    }
+
+    pub inline fn get() rl.Color {
+        return clear_color;
+    }
+};
+
+pub inline fn setClearColor(to: rl.Color) void {
+    clear_color = to;
+}
+
+pub inline fn getClearColor() rl.Color {
+    return clear_color;
+}
 
 pub const setExitKey = rl.setExitKey;
 
@@ -24,6 +45,18 @@ pub fn init() void {
         loom.toi32(start_size.y),
         title.get(),
     );
+    if (_temp_pos) |pos| {
+        rl.setWindowPosition(loom.toi32(pos.x), loom.toi32(pos.y));
+    }
+    if (_temp_fullscreen) {
+        fullscreen.enable();
+    }
+    if (_temp_borderless) {
+        borderless.enable();
+    }
+    rl.pollInputEvents();
+    _size = loom.Vec2(rl.getScreenWidth(), rl.getScreenHeight());
+    _temp_size = _size;
     rl.initAudioDevice();
 }
 
@@ -67,23 +100,25 @@ pub const fpsTarget = struct {
 pub const size = struct {
     inline fn update() void {
         _size = loom.Vec2(rl.getScreenWidth(), rl.getScreenHeight());
+        _temp_size = _size;
     }
 
     pub inline fn set(to: loom.Vector2) void {
+        _size = to;
+        _temp_size = to;
         if (is_alive) {
             rl.setWindowSize(
                 loom.toi32(to.x),
                 loom.toi32(to.y),
             );
-            update();
-            return;
         }
-        _temp_size = to;
     }
 
     pub inline fn get() loom.Vector2 {
         if (!is_alive) return _temp_size;
-        update();
+        if (rl.isWindowResized()) {
+            update();
+        }
         return _size;
     }
 };
@@ -245,7 +280,7 @@ pub const title = struct {
 ///
 /// You can toggle this setting via `.enable()` and `.disable()`.
 pub const restore_state = struct {
-    var use: bool = false;
+    var use: bool = true;
 
     pub fn enable() void {
         use = true;
@@ -276,45 +311,25 @@ pub const restore_state = struct {
         defer file.close(loom.io.singleThreaded());
 
         const win_size = size.get();
-        const win_size_x: u16 = @bitCast(@as(i16, @intFromFloat(@min(
-            @as(f32, @floatFromInt(std.math.maxInt(i16))),
-            @round(win_size.x),
-        ))));
-        const win_size_y: u16 = @bitCast(@as(i16, @intFromFloat(@min(
-            @as(f32, @floatFromInt(std.math.maxInt(i16))),
-            @round(win_size.y),
-        ))));
+        const win_size_x: i16 = @intCast(std.math.clamp(@as(i32, @intFromFloat(@round(win_size.x))), 1, std.math.maxInt(i16)));
+        const win_size_y: i16 = @intCast(std.math.clamp(@as(i32, @intFromFloat(@round(win_size.y))), 1, std.math.maxInt(i16)));
 
         const win_pos = rl.getWindowPosition();
-        const win_pos_x: u16 = @bitCast(@as(i16, @intFromFloat(@min(
-            @as(f32, @floatFromInt(std.math.maxInt(i16))),
-            @round(win_pos.x),
-        ))));
-        const win_pos_y: u16 = @bitCast(@as(i16, @intFromFloat(@min(
-            @as(f32, @floatFromInt(std.math.maxInt(i16))),
-            @round(win_pos.y),
-        ))));
+        const win_pos_x: i16 = @intCast(std.math.clamp(@as(i32, @intFromFloat(@round(win_pos.x))), std.math.minInt(i16), std.math.maxInt(i16)));
+        const win_pos_y: i16 = @intCast(std.math.clamp(@as(i32, @intFromFloat(@round(win_pos.y))), std.math.minInt(i16), std.math.maxInt(i16)));
 
-        var buffer: [1024]u8 = [_]u8{0} ** 1024;
-        var writer_root = file.writer(loom.io.singleThreaded(), &buffer);
-        var writer = &writer_root.interface;
-
-        try writer.writeByte(loom.coerceTo(u8, win_pos_x >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, (win_pos_x << 8) >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, win_pos_y >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, (win_pos_y << 8) >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, win_size_x >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, (win_size_x << 8) >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, win_size_y >> 8) orelse 0);
-        try writer.writeByte(loom.coerceTo(u8, (win_size_y << 8) >> 8) orelse 0);
-
-        // 8th bit - fullsceen - 0b0000_0001
-        // 7th bit - borderless - 0b0000_0010
         var config_flags_bits: u8 = 0b0000_0000;
         if (fullscreen.get()) config_flags_bits |= 0b0000_0001;
         if (borderless.get()) config_flags_bits |= 0b0000_0010;
 
-        try writer.writeByte(config_flags_bits);
+        var bytes: [9]u8 = undefined;
+        std.mem.writeInt(i16, bytes[0..2], win_pos_x, .big);
+        std.mem.writeInt(i16, bytes[2..4], win_pos_y, .big);
+        std.mem.writeInt(i16, bytes[4..6], win_size_x, .big);
+        std.mem.writeInt(i16, bytes[6..8], win_size_y, .big);
+        bytes[8] = config_flags_bits;
+
+        try file.writePositionalAll(loom.io.singleThreaded(), &bytes, 0);
     }
 
     pub fn load() !void {
@@ -326,35 +341,40 @@ pub const restore_state = struct {
         const path = try std.fmt.allocPrint(loom.allocators.generic(), "{s}{s}{s}", .{ exepath, std.fs.path.sep_str, ".loom.winstate" });
         defer loom.allocators.generic().free(path);
 
-        var file = try std.Io.Dir.cwd().openFile(
+        var file = std.Io.Dir.cwd().openFile(
             loom.io.singleThreaded(),
             path,
             .{ .mode = .read_only },
-        );
+        ) catch |err| switch (err) {
+            error.FileNotFound => return,
+            else => return err,
+        };
         defer file.close(loom.io.singleThreaded());
 
-        var buffer: [2048]u8 = std.mem.zeroes([2048]u8);
-        var reader_root = file.reader(loom.io.singleThreaded(), &buffer);
-        var reader = &reader_root.interface;
+        var bytes: [9]u8 = undefined;
+        const bytes_read = try file.readPositionalAll(loom.io.singleThreaded(), &bytes, 0);
+        if (bytes_read < 9) return;
 
-        const pos_x_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
-        const pos_x: i16 = @bitCast(@as(u16, @intCast((loom.tou16(pos_x_str[0]) << 8) + loom.tou16(pos_x_str[1]))));
+        const pos_x = std.mem.readInt(i16, bytes[0..2], .big);
+        const pos_y = std.mem.readInt(i16, bytes[2..4], .big);
+        const size_x = std.mem.readInt(i16, bytes[4..6], .big);
+        const size_y = std.mem.readInt(i16, bytes[6..8], .big);
+        const config_flag_bits = bytes[8];
 
-        const pos_y_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
-        const pos_y: i16 = @bitCast(@as(u16, @intCast((loom.tou16(pos_y_str[0]) << 8) + loom.tou16(pos_y_str[1]))));
+        if (size_x <= 0 or size_y <= 0) return;
 
-        const size_x_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
-        const size_x: i16 = @bitCast(@as(u16, @intCast((loom.tou16(size_x_str[0]) << 8) + loom.tou16(size_x_str[1]))));
+        if (is_alive) {
+            rl.setWindowPosition(@as(i32, pos_x), @as(i32, pos_y));
+            size.set(loom.Vec2(size_x, size_y));
 
-        const size_y_str = [_]u8{ try reader.takeByte(), try reader.takeByte() };
-        const size_y: i16 = @bitCast(@as(u16, @intCast((loom.tou16(size_y_str[0]) << 8) + loom.tou16(size_y_str[1]))));
+            if (config_flag_bits & 0b0000_0001 > 0) fullscreen.enable();
+            if (config_flag_bits & 0b0000_0010 > 0) borderless.enable();
+        } else {
+            _temp_pos = loom.Vec2(pos_x, pos_y);
+            size.set(loom.Vec2(size_x, size_y));
 
-        const config_flag_bits = try reader.takeByte();
-
-        rl.setWindowPosition(@intCast(pos_x), @intCast(pos_y));
-        size.set(loom.Vec2(size_x, size_y));
-
-        if (config_flag_bits & 0b0000_0001 > 0) fullscreen.enable();
-        if (config_flag_bits & 0b0000_0010 > 0) borderless.enable();
+            if (config_flag_bits & 0b0000_0001 > 0) _temp_fullscreen = true;
+            if (config_flag_bits & 0b0000_0010 > 0) _temp_borderless = true;
+        }
     }
 };

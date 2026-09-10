@@ -31,7 +31,7 @@ pub const Options = struct {
     draw_mode: Drawmode,
     shader: ?[]const u8 = null,
     draw_fn: ?DrawFunction = null,
-    clear_color: rl.Color = .white,
+    clear_color: ?rl.Color = null,
 
     z_index: f32 = 0,
     offset: lm.Vector2 = .init(0, 0),
@@ -53,7 +53,7 @@ draw_fn: ?DrawFunction = null,
 render_texture: rl.RenderTexture,
 camera: rl.Camera2D,
 
-clear_color: rl.Color = .white,
+clear_color: ?rl.Color = null,
 
 z_index: f32 = 0,
 offset: lm.Vector2 = .init(0, 0),
@@ -113,19 +113,19 @@ pub fn begin(self: *Self) !void {
     self.camera.zoom = self.zoom;
 
     const winsize = lm.window.size.get();
-    if (self.partial == null)
+    if (self.partial == null) {
         if (lm.tof32(self.render_texture.texture.height) != winsize.y or
-            lm.tof32(self.render_texture.texture.width) != winsize.x)
+            lm.tof32(self.render_texture.texture.width) != winsize.x or
+            rl.isWindowResized())
         {
-            self.render_texture.texture.unload();
             self.render_texture.unload();
             self.render_texture = try .init(lm.toi32(winsize.x), lm.toi32(winsize.y));
-        };
+        }
+    }
     if (self.partial) |partial| {
         if (partial.height != lm.tof32(self.render_texture.texture.height) or
             partial.width != lm.tof32(self.render_texture.texture.width))
         {
-            self.render_texture.texture.unload();
             self.render_texture.unload();
             self.render_texture = try .init(lm.toi32(partial.width), lm.toi32(partial.height));
         }
@@ -133,7 +133,11 @@ pub fn begin(self: *Self) !void {
 
     self.render_texture.begin();
 
-    rl.clearBackground(self.clear_color);
+    if (self.clear_color) |color| {
+        rl.clearBackground(color);
+    } else {
+        rl.clearBackground(rl.Color.blank);
+    }
 
     self.camera.begin();
 }
@@ -144,16 +148,24 @@ pub fn end(self: *Self) void {
 
     if (self.shader) |shader| shader.activate();
 
-    rl.drawTextureRec(
-        self.render_texture.texture,
-        lm.Rect(0, 0, self.render_texture.texture.width, -self.render_texture.texture.height),
-        if (self.partial) |p|
-            .init(p.x, p.y)
-        else
+    if (self.partial) |p| {
+        rl.drawTextureRec(
+            self.render_texture.texture,
+            lm.Rect(0, 0, self.render_texture.texture.width, -self.render_texture.texture.height),
+            .init(p.x, p.y),
+            .white,
+        );
+    } else {
+        const winsize = lm.window.size.get();
+        rl.drawTexturePro(
+            self.render_texture.texture,
+            lm.Rect(0, 0, lm.tof32(self.render_texture.texture.width), -lm.tof32(self.render_texture.texture.height)),
+            lm.Rect(0, 0, winsize.x, winsize.y),
             .init(0, 0),
-
-        .white,
-    );
+            0,
+            .white,
+        );
+    }
 
     if (self.shader) |shader| shader.deactivate();
 }
@@ -184,4 +196,12 @@ pub fn useShader(self: *Self, shader_path: ?[]const u8) void {
         lm.assets.shader.get(sp, &.{})
     else
         null;
+}
+
+pub fn setClearColor(self: *Self, color: ?rl.Color) void {
+    self.clear_color = color;
+}
+
+pub fn getClearColor(self: *Self) ?rl.Color {
+    return self.clear_color;
 }

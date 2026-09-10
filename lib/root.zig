@@ -117,7 +117,7 @@ pub const ProjectConfig = struct {
         title: [:0]const u8 = "untitled loom project",
         size: Vector2 = .init(1280, 720),
 
-        restore_state: bool = false,
+        restore_state: bool = true,
 
         borderless: bool = false,
         fullscreen: bool = false,
@@ -148,17 +148,20 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
 
     time.init();
 
+    window.title.set(config.window.title);
+    window.size.set(config.window.size);
+    window.resizing.set(config.window.resizable);
+    window.restore_state.set(config.window.restore_state);
+
+    window.restore_state.load() catch {
+        std.log.err("failed to load window state", .{});
+    };
+
     window.init();
     audio.init();
 
-    window.title.set(config.window.title);
-    window.size.set(config.window.size);
-
-    window.restore_state.set(config.window.restore_state);
-
     window.borderless.set(config.window.borderless);
     window.fullscreen.set(config.window.fullscreen);
-    window.resizing.set(config.window.resizable);
 
     window.vsync.set(config.window.vsync);
     window.fpsTarget.set(config.window.fps_target);
@@ -169,10 +172,6 @@ pub fn project(config: ProjectConfig) *const fn (void) void {
         .debug = config.asset_paths.debug,
         .release = config.asset_paths.release,
     });
-
-    window.restore_state.load() catch {
-        std.log.err("failed to load window state", .{});
-    };
 
     display.init();
     ui.init(allocators.arena()) catch @panic("UI INIT FAILED");
@@ -297,18 +296,23 @@ pub fn cameras(camera_configs: []const CameraConfig) void {
     };
 }
 
-pub fn useMainCamera() void {
+pub fn useMainCameraWithOptions(options: Camera.Options) void {
     const selected_scene = program.dispatcher.active_scene orelse program.dispatcher.open_scene orelse return;
 
     selected_scene.default_cameras.append(.{
         .id = "main",
-        .options = .{
-            .draw_mode = .world,
-            .display = .fullscreen,
-        },
+        .options = options,
     }) catch |err| {
         std.log.err("failed to use main camera due to error: {any} in scene \"{s}\"", .{ err, selected_scene.id });
     };
+}
+
+pub fn useMainCamera() void {
+    useMainCameraWithOptions(.{
+        .draw_mode = .world,
+        .display = .fullscreen,
+        .clear_color = null,
+    });
 }
 
 pub const prefab = Prefab.init;

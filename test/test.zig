@@ -9,4 +9,5 @@ test {
     _ = @import("eventloop/eventloop.zig");
     _ = @import("sort.zig");
     _ = @import("window.zig");
+    _ = @import("animator.zig");
 }

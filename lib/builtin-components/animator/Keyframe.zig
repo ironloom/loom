@@ -68,7 +68,7 @@ pub fn interpolate(
         t,
     );
 
-    new.sprite = if (func(0, 1, t) > 0.5) self.sprite else other.sprite;
+    new.sprite = if (func(0, 1, t) <= 0.5) self.sprite else other.sprite;
 
     return new;
 }

@@ -148,7 +148,17 @@ pub fn close(self: *Self) void {
 
     const keysArrayList = self.makeKeysArrayList();
 
-    const keyframe_percent_distance: f32 = MAX_FRAMES / tof32(unregistered_keyframes.len() - 1);
+    const keyframe_count = unregistered_keyframes.len();
+    if (keyframe_count <= 1) {
+        if (keyframe_count == 1) {
+            keyframes.put(0, unregistered_keyframes.items()[0]) catch {};
+            keysArrayList.append(0) catch {};
+            self.makeKeySliceAndSort() catch return;
+        }
+        return;
+    }
+
+    const keyframe_percent_distance: f32 = MAX_FRAMES / tof32(keyframe_count - 1);
     for (unregistered_keyframes.items(), 0..) |keyframe, index| {
         const percent = lm.toi32(@min(tof32(index) * keyframe_percent_distance, MAX_FRAMES));
 

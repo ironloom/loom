@@ -56,10 +56,13 @@ pub fn clayRaylibRender(render_commands: *cl.ClayArray(cl.RenderCommand), alloca
             },
             .image => {
                 const config = render_command.render_data.image;
+                const image_data = config.image_data orelse continue;
 
                 const image_texture: *const rl.Texture2D = @ptrCast(
-                    @alignCast(config.image_data),
+                    @alignCast(image_data),
                 );
+                if (image_texture.width == 0 or image_texture.height == 0) continue;
+
                 rl.drawTextureEx(
                     image_texture.*,
                     rl.Vector2{ .x = bounding_box.x, .y = bounding_box.y },

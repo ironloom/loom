@@ -8,7 +8,7 @@ pub fn main() !void {
         .window = .{
             .resizable = true,
         },
-        .asset_paths = .{ .debug = "./" },
+        .asset_paths = .{ .debug = "./examples/animator/assets/" },
     })({
         loom.scene("default")({
             loom.useMainCamera();

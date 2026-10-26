@@ -129,10 +129,7 @@ x 2026-02-06 update: make eventloop/Scene.zig way more readable
 +0.11.0
 x 2026-10-26 update:    migraze Behaviour from std.c.malloc to use []u8 buffer 
                         instead for caching @ecs
-
-+--------------------------------[IN_PROGRESS]--------------------------------+
-
-update: rework the assets.zig module @assets
+x 2026-10-26 update: rework the assets.zig module @assets
     GOAL:   stream assets asynchronously without stalling the main loop.
             - Pipeline: worker thread loads disk data + CPU decode (Image/Wave).
               Main thread performs GPU upload (Texture) / audio device load.
@@ -141,9 +138,13 @@ update: rework the assets.zig module @assets
             - Cache eviction: add assets.tick() hook to root.zig engine loop.
               Drop unreferenced assets after a tick TTL grace period.
 
+x 2026-10-26 update: Animator sprite cache @builtin-components
+    GOAL:   when a playing animation changes the sprites of the entity, the 
+            textures should be stored in a cache, until the animation finishes, 
+            thus preventing unnecessary disk usage.
+
++--------------------------------[IN_PROGRESS]--------------------------------+
+
+
 +-----------------------------------[TO_DO]-----------------------------------+
 
-update: Animator sprite cache.
-    GOAL:   when a playing animation changes the sprites of the entity, the 
-            textures should be stored in a chache, until the animation finishes, 
-            thus preventing unnecessary disk usage.

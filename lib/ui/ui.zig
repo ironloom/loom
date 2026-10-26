@@ -22,6 +22,10 @@ pub fn new(config: clay.ElementDeclaration) *const fn (void) void {
 }
 
 pub const text = clay.text;
+pub fn textFmt(comptime format: []const u8, args: anytype, config: clay.TextElementConfig) void {
+    const formatted_text = std.fmt.allocPrint(arena.allocator(), format, args) catch "TEXT FORMAT FAILED";
+    text(formatted_text, config);
+}
 
 var memory: []u8 = undefined;
 
@@ -53,6 +57,7 @@ var fonts_cache: lm.List(FontEntry) = undefined;
 var font_index: usize = 1;
 var alloc: std.mem.Allocator = undefined;
 var last_window_size: lm.Vector2 = .init(0, 0);
+var arena: std.heap.ArenaAllocator = undefined;
 
 pub fn init(allocator: Allocator) !void {
     fonts = .init(allocator);
@@ -60,12 +65,16 @@ pub fn init(allocator: Allocator) !void {
     textures = .init(allocator);
     alloc = allocator;
 
+    arena = .init(allocator);
+
     const min_memory_size: usize = lm.coerceTo(usize, clay.minMemorySize()).?;
     memory = try alloc.alloc(u8, min_memory_size);
 
-    const arena: clay.Arena = .init(memory);
+    const clay_arena: clay.Arena = .init(memory);
 
-    _ = clay.initialize(arena, .{ .h = 1280, .w = 720 }, .{});
+    const win_size = lm.window.size.get();
+    last_window_size = win_size;
+    _ = clay.initialize(clay_arena, .{ .w = win_size.x, .h = win_size.y }, .{});
     clay.setMeasureTextFunction(void, {}, renderer.measureText);
 
     renderer.raylib_fonts[0] = try rl.getFontDefault();
@@ -102,6 +111,8 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
         if (texture.refs == 0) lm.assets.texture.releasePtr(texture.texture);
         texture.refs = 0;
     }
+
+    _ = arena.reset(.retain_capacity);
 }
 
 pub fn deinit() void {
@@ -137,6 +148,7 @@ pub fn deinit() void {
     textures.deinit();
 
     alloc.free(memory);
+    arena.deinit();
 }
 
 fn loadFont(rel_path: []const u8) !void {

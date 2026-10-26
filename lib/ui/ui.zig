@@ -107,9 +107,16 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
 
     fonts.clearAndFree();
 
-    for (textures.items()) |*texture| {
-        if (texture.refs == 0) lm.assets.texture.releasePtr(texture.texture);
-        texture.refs = 0;
+    var texture_index = textures.len();
+    while (texture_index > 0) {
+        texture_index -= 1;
+        const texture = &textures.items()[texture_index];
+        if (texture.refs == 0) {
+            lm.assets.texture.releasePtr(texture.texture);
+            _ = textures.swapRemove(texture_index);
+        } else {
+            texture.refs = 0;
+        }
     }
 
     _ = arena.reset(.retain_capacity);

@@ -488,18 +488,26 @@ pub const allocators = struct {
     pub const c = struct {
         const CError = error{
             OutOfMemory,
+            DeprecatedInterface,
         };
 
         pub fn create(comptime T: type) !*T {
-            const ptr = try malloc(@sizeOf(T));
-            return @ptrCast(@alignCast(ptr));
+            deprecated("loom no longer supports the allocators.c interface.");
+            return CError.DeprecatedInterface;
         }
 
         pub fn malloc(size: usize) !*anyopaque {
-            return std.c.malloc(size) orelse CError.OutOfMemory;
+            _ = size;
+
+            deprecated("loom no longer supports the allocators.c interface.");
+            return CError.DeprecatedInterface;
         }
 
-        pub const free = std.c.free;
+        pub fn free(ptr: *anyopaque) void {
+            _ = ptr;
+
+            deprecated("loom no longer supports the allocators.c interface.");
+        }
     };
 };
 

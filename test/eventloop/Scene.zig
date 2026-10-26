@@ -270,7 +270,7 @@ test "useGlobalBehaviours" {
     try expectError(error.SceneActive, my_scene.useGlobalBehaviours(.{}));
 
     my_scene.is_active = false;
-    var u8_behaviour = try lm.GlobalBehaviour.init(@as(u8, 47));
+    var u8_behaviour = try lm.GlobalBehaviour.init(allocator, @as(u8, 47));
 
     try my_scene.default_behaviours.append(&u8_behaviour);
     try expectEqual(1, my_scene.default_behaviours.len());

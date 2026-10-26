@@ -94,7 +94,7 @@ pub fn addPreparedComponents(self: *Self, dispatch_events: bool) !void {
 
 pub fn addComponent(self: *Self, component: anytype) !void {
     const ptr = try self.alloc.create(Behaviour(Self));
-    ptr.* = try Behaviour(Self).init(component);
+    ptr.* = try Behaviour(Self).init(self.alloc, component);
 
     try self.prepared_components.append(ptr);
 }
@@ -184,7 +184,10 @@ pub fn removeComponents(self: *Self, comptime T: type) void {
 }
 
 pub fn dispatchEvent(self: *Self, event: Behaviour(Self).Events) void {
-    if (event == .end) self.end_dispatched = true;
+    if (event == .end) switch (self.end_dispatched) {
+        true => return,
+        false => self.end_dispatched = true,
+    };
 
     for (self.components.items()) |item| {
         item.callSafe(event, self);

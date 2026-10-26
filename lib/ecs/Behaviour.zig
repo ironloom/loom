@@ -1,10 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-
-const c = @cImport({
-    @cInclude("string.h");
-    @cInclude("stdlib.h");
-});
+const lm = @import("../root.zig");
 
 pub fn Behaviour(comptime T: type) type {
     return struct {
@@ -21,7 +17,9 @@ pub fn Behaviour(comptime T: type) type {
 
         const Self = @This();
 
-        cache: *anyopaque,
+        allocator: std.mem.Allocator,
+
+        cache_buffer: []u8,
         cache_size: usize = 0,
         name: []const u8 = "UNNAMED_BEHAVIOUR",
         hash: u64,
@@ -34,16 +32,20 @@ pub fn Behaviour(comptime T: type) type {
         tick: FnType = null,
         end: FnType = null,
 
-        pub fn init(value: anytype) !Self {
+        pub fn init(allocator: std.mem.Allocator, value: anytype) !Self {
             const K: type = comptime @TypeOf(value);
 
-            const c_ptr = std.c.malloc(@sizeOf(K)) orelse return Error.OutOfMemory;
-            const ptr: *K = @ptrCast(@alignCast(c_ptr));
-            ptr.* = value;
+            const cache_size = comptime lm.types.alignedSize(K);
+            const cache_buffer = try allocator.alloc(u8, cache_size);
+
+            const value_as_bytes = std.mem.asBytes(&value);
+            @memcpy(cache_buffer[0..value_as_bytes.len], value_as_bytes);
 
             var self = Self{
-                .cache = @ptrCast(@alignCast(ptr)),
-                .cache_size = @sizeOf(K),
+                .cache_buffer = cache_buffer,
+                .cache_size = cache_size,
+
+                .allocator = allocator,
 
                 .name = @typeName(K),
                 .hash = comptime calculateHash(K),
@@ -54,29 +56,29 @@ pub fn Behaviour(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            std.c.free(self.cache);
+            self.allocator.free(self.cache_buffer);
             self.* = undefined;
         }
 
         pub fn duplicate(self: Self) !Self {
-            const c_ptr = std.c.malloc(self.cache_size) orelse return Error.OutOfMemory;
-            _ = c.memcpy(c_ptr, self.cache, @intCast(self.cache_size));
+            const new_buffer = try self.allocator.alloc(u8, self.cache_buffer.len);
+            std.mem.copyForwards(u8, new_buffer, self.cache_buffer);
 
-            var new = Self{
-                .cache = c_ptr,
+            return Self{
+                .cache_buffer = new_buffer,
                 .cache_size = self.cache_size,
+
+                .allocator = self.allocator,
 
                 .name = self.name,
                 .hash = self.hash,
+
+                .awake = self.awake,
+                .start = self.start,
+                .update = self.update,
+                .tick = self.tick,
+                .end = self.end,
             };
-
-            new.awake = self.awake;
-            new.start = self.start;
-            new.update = self.update;
-            new.tick = self.tick;
-            new.end = self.end;
-
-            return new;
         }
 
         pub fn add(self: *Self, event: Events, callback: FnType) void {
@@ -102,7 +104,7 @@ pub fn Behaviour(comptime T: type) type {
                 .end => self.end,
             } orelse return;
 
-            func(self.cache, target) catch {
+            func(self.cache_buffer.ptr, target) catch {
                 std.log.err("behaviour event failed ({s}({x})->{s}.{s})", .{
                     target.id,
                     target.uuid,
@@ -198,7 +200,7 @@ pub fn Behaviour(comptime T: type) type {
         }
 
         pub fn castBack(self: *Self, comptime K: type) ?*K {
-            return if (self.isType(K)) @ptrCast(@alignCast(self.cache)) else null;
+            return if (self.isType(K)) @ptrCast(@alignCast(self.cache_buffer.ptr)) else null;
         }
 
         pub inline fn isType(self: *Self, comptime K: type) bool {

@@ -34,27 +34,27 @@ pub fn parse(
             defer if (vertex_shader_data) |vsd| lm.allocators.generic().free(vsd);
 
             vertex_shader_c_data = if (vertex_shader_data) |vs|
-                try lm.allocators.generic().dupeZ(u8, vs)
+                try lm.allocators.generic().dupeSentinel(u8, vs, 0)
             else
                 null;
 
-            fragment_shader_c_data = try lm.allocators.generic().dupeZ(u8, data);
+            fragment_shader_c_data = try lm.allocators.generic().dupeSentinel(u8, data, 0);
         } else {
             const fragment_shader_data: ?[]const u8 = files.getData(other_shader_filename) catch null;
             defer if (fragment_shader_data) |fsd| lm.allocators.generic().free(fsd);
 
             fragment_shader_c_data = if (fragment_shader_data) |fs|
-                try lm.allocators.generic().dupeZ(u8, fs)
+                try lm.allocators.generic().dupeSentinel(u8, fs, 0)
             else
                 null;
 
-            vertex_shader_c_data = try lm.allocators.generic().dupeZ(u8, data);
+            vertex_shader_c_data = try lm.allocators.generic().dupeSentinel(u8, data, 0);
         }
     } else {
         if (std.mem.eql(u8, filetype, ".fs")) {
-            fragment_shader_c_data = try lm.allocators.generic().dupeZ(u8, data);
+            fragment_shader_c_data = try lm.allocators.generic().dupeSentinel(u8, data, 0);
         } else {
-            vertex_shader_c_data = try lm.allocators.generic().dupeZ(u8, data);
+            vertex_shader_c_data = try lm.allocators.generic().dupeSentinel(u8, data, 0);
         }
     }
 

@@ -121,14 +121,14 @@ pub fn Behaviour(comptime T: type) type {
         }
 
         inline fn determineFunctionType(comptime K: type, comptime info: std.builtin.Type.Fn) ?FunctionType {
-            switch (info.params.len) {
+            switch (info.param_types.len) {
                 2 => {
-                    if (info.params[0].type == *K and info.params[1].type == *T) return FunctionType.generic;
-                    if (info.params[0].type == *T and info.params[1].type == *K) return FunctionType.reversed;
+                    if (info.param_types[0] == *K and info.param_types[1] == *T) return FunctionType.generic;
+                    if (info.param_types[0] == *T and info.param_types[1] == *K) return FunctionType.reversed;
                 },
                 1 => {
-                    if (info.params[0].type == *K) return FunctionType.self_only;
-                    if (info.params[0].type == *T) return FunctionType.target_only;
+                    if (info.param_types[0] == *K) return FunctionType.self_only;
+                    if (info.param_types[0] == *T) return FunctionType.target_only;
                 },
                 0 => {
                     return FunctionType.empty;
@@ -209,21 +209,22 @@ pub fn Behaviour(comptime T: type) type {
     };
 }
 
+fn hashFieldNames(field_names: []const [:0]const u8) comptime_int {
+    var fieldsum: comptime_int = 1;
+    for (field_names, 0..) |field_name, index| {
+        for (field_name, 0..) |char, jndex| {
+            fieldsum += (@as(comptime_int, @intCast(char)) *
+                (@as(comptime_int, @intCast(jndex)) + 1) *
+                (@as(comptime_int, @intCast(index)) + 1)) % std.math.maxInt(u63);
+        }
+    }
+    return fieldsum;
+}
+
 pub inline fn calculateHash(comptime T: type) u64 {
     const struct_hash: comptime_int = comptime switch (@typeInfo(T)) {
-        .@"struct", .@"enum" => blk: {
-            var fieldsum: comptime_int = 1;
-
-            for (std.meta.fields(T), 0..) |field, index| {
-                for (field.name, 0..) |char, jndex| {
-                    fieldsum += (@as(comptime_int, @intCast(char)) *
-                        (@as(comptime_int, @intCast(jndex)) + 1) *
-                        (@as(comptime_int, @intCast(index)) + 1)) % std.math.maxInt(u63);
-                }
-            }
-
-            break :blk fieldsum;
-        },
+        .@"struct" => |info| hashFieldNames(info.field_names),
+        .@"enum" => |info| hashFieldNames(info.field_names),
         else => 1,
     };
 
@@ -235,6 +236,5 @@ pub inline fn calculateHash(comptime T: type) u64 {
     }
 
     return (@max(1, @sizeOf(T)) * @max(1, @alignOf(T)) +
-        @max(1, @bitSizeOf(T)) * @max(1, @alignOf(T)) +
         struct_hash * name_hash * @max(1, @alignOf(T)) * 13) % std.math.maxInt(u63);
 }

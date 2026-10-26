@@ -55,7 +55,7 @@ pub fn render() void {
     std.sort.insertion(Renderer, buf.items, {}, sort);
 
     for (buf.items) |item| {
-        if (builtin.mode == .Debug and loom.window.use_debug_mode) Debug: {
+        if (builtin.mode == .debug and loom.window.use_debug_mode) Debug: {
             if (item.entity) |entity| blk: {
                 const collider = entity.getComponent(loom.RectangleCollider) orelse break :blk;
 

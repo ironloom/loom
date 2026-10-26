@@ -24,7 +24,7 @@ pub fn parse(
     const font_height = lm.toi32(mod[0]);
     const fchars = if (mod.len >= 2) mod[1..] else &.{};
 
-    const file_type = try lm.allocators.generic().dupeZ(u8, filetype);
+    const file_type = try lm.allocators.generic().dupeSentinel(u8, filetype, 0);
     errdefer lm.allocators.generic().free(file_type);
 
     const file_data = try lm.allocators.generic().dupe(u8, data);

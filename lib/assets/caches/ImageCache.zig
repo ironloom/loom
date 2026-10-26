@@ -10,7 +10,7 @@ pub fn parse(
 ) !rl.Image {
     _ = path;
 
-    const str: [:0]const u8 = try lm.allocators.generic().dupeZ(u8, filetype);
+    const str: [:0]const u8 = try lm.allocators.generic().dupeSentinel(u8, filetype, 0);
     defer lm.allocators.generic().free(str);
 
     var img = try rl.loadImageFromMemory(str, data);

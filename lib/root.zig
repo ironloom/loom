@@ -9,14 +9,11 @@ const rl = @import("raylib");
 const clay = @import("zclay");
 const uuid = @import("uuid");
 
-pub const deps = if (builtin.is_test)
-    struct {}
-else
-    struct {
-        pub const rl = @import("raylib");
-        pub const clay = @import("zclay");
-        pub const uuid = @import("uuid");
-    };
+pub const deps = struct {
+    pub const rl = @import("raylib");
+    pub const clay = @import("zclay");
+    pub const uuid = @import("uuid");
+};
 
 pub const window = @import("window.zig");
 
@@ -455,7 +452,7 @@ pub const allocators = struct {
     pub inline fn generic() Allocator {
         return AI_generic.allocator orelse Blk: {
             switch (builtin.mode) {
-                .Debug, .ReleaseFast => {
+                .debug, .fast => {
                     AI_generic.interface = std.heap.DebugAllocator(.{}).init;
                     AI_generic.allocator = AI_generic.interface.?.allocator();
                 },

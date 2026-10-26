@@ -7,8 +7,8 @@ pub const AssetPromise = @import("asset_promise.zig").AssetPromise;
 pub const files = @import("files.zig");
 
 pub fn deinit() void {
-    inline for (@typeInfo(@This()).@"struct".decls) |decl| {
-        const T = @field(@This(), decl.name);
+    inline for (@typeInfo(@This()).@"struct".decl_names) |decl_name| {
+        const T = @field(@This(), decl_name);
         if (@typeInfo(@TypeOf(T)) == .type and @hasDecl(T, "deinit")) {
             T.deinit();
         }

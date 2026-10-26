@@ -20,7 +20,7 @@ pub const paths = struct {
 
 pub fn getBase() ![]const u8 {
     const exepath = switch (builtin.mode) {
-        .Debug => try std.Io.Dir.cwd().realPathFileAlloc(
+        .debug => try std.Io.Dir.cwd().realPathFileAlloc(
             lm.io.singleThreaded(),
             ".",
             lm.allocators.generic(),
@@ -35,7 +35,7 @@ pub fn getBase() ![]const u8 {
     const path = try std.fmt.allocPrint(lm.allocators.generic(), "{s}{s}{s}", .{
         exepath, std.fs.path.sep_str,
         switch (builtin.mode) {
-            .Debug => paths.debug,
+            .debug => paths.debug,
             else => paths.release,
         },
     });
@@ -73,7 +73,7 @@ pub fn getData(pth: []const u8) ![]const u8 {
     );
     defer read_file.close(lm.io.singleThreaded());
 
-    var buffer: [1024]u8 = [_]u8{0} ** 1024;
+    var buffer: [1024]u8 = @splat(0);
     var reader = read_file.reader(lm.io.singleThreaded(), &buffer);
 
     return try reader.interface.allocRemaining(lm.allocators.generic(), .unlimited);

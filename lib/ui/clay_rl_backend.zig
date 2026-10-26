@@ -12,7 +12,7 @@ pub fn clayColorToRaylibColor(color: cl.Color) rl.Color {
     };
 }
 
-pub var raylib_fonts: [10]?rl.Font = .{null} ** 10;
+pub var raylib_fonts: [10]?rl.Font = @splat(null);
 
 pub fn clayRaylibRender(render_commands: *cl.ClayArray(cl.RenderCommand), allocator: std.mem.Allocator) !void {
     const screen_w: f32 = @floatFromInt(rl.getScreenWidth());
@@ -41,7 +41,7 @@ pub fn clayRaylibRender(render_commands: *cl.ClayArray(cl.RenderCommand), alloca
                 const config = render_command.render_data.text;
                 const text = config.string_contents.chars[0..@intCast(config.string_contents.length)];
                 // Raylib uses standard C strings so isn't compatible with cheap slices, we need to clone the string to append null terminator
-                const cloned = try allocator.dupeZ(u8, text);
+                const cloned = try allocator.dupeSentinel(u8, text, 0);
                 defer allocator.free(cloned);
                 const fontToUse: rl.Font = raylib_fonts[config.font_id].?;
                 rl.setTextLineSpacing(config.line_height);

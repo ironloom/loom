@@ -11,7 +11,7 @@ pub fn parse(
     _ = path;
     _ = mod;
 
-    const str: [:0]const u8 = try lm.allocators.generic().dupeZ(u8, filetype);
+    const str: [:0]const u8 = try lm.allocators.generic().dupeSentinel(u8, filetype, 0);
     defer lm.allocators.generic().free(str);
 
     return try rl.loadWaveFromMemory(str, data);

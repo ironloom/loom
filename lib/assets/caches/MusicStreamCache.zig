@@ -22,7 +22,7 @@ pub fn parse(
     const file_data: []const u8 = try allocator.dupe(u8, data);
     errdefer allocator.free(file_data);
 
-    const file_type: [:0]const u8 = try allocator.dupeZ(u8, filetype);
+    const file_type: [:0]const u8 = try allocator.dupeSentinel(u8, filetype, 0);
     errdefer allocator.free(file_type);
 
     return MusicStreamConfig{

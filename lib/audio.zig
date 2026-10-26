@@ -7,7 +7,8 @@ const assets = loom.assets;
 const Sound = rl.Sound;
 
 const Cached = struct {
-    sound: *Sound,
+    promise: *assets.sound.Promise,
+    sound: ?*Sound = null,
     life: usize = 15,
     playing: bool = false,
     volume: f32 = 1,
@@ -29,6 +30,15 @@ pub fn init() void {
 pub fn deinit() void {
     if (!is_alive) return;
 
+    var iter = audio_cache.iterator();
+    while (iter.next()) |entry| {
+        if (entry.value_ptr.sound) |sound| {
+            assets.sound.releasePtr(sound);
+        } else {
+            assets.sound.releasePromise(entry.value_ptr.promise);
+        }
+    }
+
     is_alive = false;
     audio_cache.deinit();
 }
@@ -44,7 +54,7 @@ pub fn update() void {
 
         if (isPlaying(path)) continue;
 
-        value_ptr.life -= 1;
+        value_ptr.life -|= 1;
         if (value_ptr.life != 0) continue;
 
         unload(path);
@@ -54,19 +64,26 @@ pub fn update() void {
 pub fn load(path: []const u8) !void {
     if (!is_alive) return;
 
-    const cached = assets.sound.get(path, &.{}) orelse return;
+    if (audio_cache.contains(path)) return;
+
+    const promise = assets.sound.get(path, &.{}) orelse return;
 
     try audio_cache.put(path, Cached{
-        .sound = cached,
+        .promise = promise,
+        .sound = promise.sync() catch null,
         .playing = true,
     });
 }
 
 pub fn unload(path: []const u8) void {
     if (!is_alive) return;
-    if (!audio_cache.remove(path)) return;
+    const entry = audio_cache.fetchRemove(path) orelse return;
 
-    assets.sound.release(path, &.{});
+    if (entry.value.sound) |sound| {
+        assets.sound.releasePtr(sound);
+    } else {
+        assets.sound.releasePromise(entry.value.promise);
+    }
 }
 
 pub fn play(path: []const u8) !void {
@@ -77,7 +94,12 @@ pub fn play(path: []const u8) !void {
         break :add audio_cache.getPtr(path) orelse return;
     };
 
-    rl.playSound(cached.sound.*);
+    if (cached.sound == null) {
+        cached.sound = cached.promise.sync() catch null;
+    }
+    const sound = cached.sound orelse return;
+
+    rl.playSound(sound.*);
 }
 
 pub fn playAdvanced(
@@ -101,8 +123,9 @@ pub fn stop(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
+    const sound = cached.sound orelse return;
 
-    rl.stopSound(cached.sound.*);
+    rl.stopSound(sound.*);
     cached.playing = false;
 }
 
@@ -110,8 +133,9 @@ pub fn proceed(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
+    const sound = cached.sound orelse return;
 
-    rl.resumeSound(cached.sound.*);
+    rl.resumeSound(sound.*);
     cached.playing = true;
 }
 
@@ -119,8 +143,9 @@ pub fn pause(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
+    const sound = cached.sound orelse return;
 
-    rl.pauseSound(cached.sound.*);
+    rl.pauseSound(sound.*);
     cached.playing = false;
 }
 
@@ -128,7 +153,8 @@ pub fn isPlaying(path: []const u8) bool {
     if (!is_alive) return false;
 
     const cached = audio_cache.getPtr(path) orelse return false;
-    cached.playing = rl.isSoundPlaying(cached.sound.*);
+    const sound = cached.sound orelse return false;
+    cached.playing = rl.isSoundPlaying(sound.*);
 
     return cached.playing;
 }
@@ -137,7 +163,9 @@ pub fn setVolume(path: []const u8, volume: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    rl.setSoundVolume(cached.sound.*, volume);
+    if (cached.sound) |sound| {
+        rl.setSoundVolume(sound.*, volume);
+    }
     cached.volume = volume;
 }
 
@@ -152,8 +180,9 @@ pub fn setPitch(path: []const u8, pitch: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-
-    rl.setSoundPitch(cached.sound.*, pitch);
+    if (cached.sound) |sound| {
+        rl.setSoundPitch(sound.*, pitch);
+    }
     cached.pitch = pitch;
 }
 
@@ -169,8 +198,9 @@ pub fn setPan(path: []const u8, pan: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-
-    rl.setSoundPan(cached.sound.*, pan);
+    if (cached.sound) |sound| {
+        rl.setSoundPan(sound.*, pan);
+    }
     cached.pan = pan;
 }
 

@@ -45,7 +45,7 @@ const Self = @This();
 id: []const u8,
 uuid: u128 = 0,
 partial: ?lm.Rectangle = null,
-shader: ?*rl.Shader = null,
+shader: ?*lm.assets.shader.Promise = null,
 
 draw_mode: Drawmode = .world,
 draw_fn: ?DrawFunction = null,
@@ -101,7 +101,7 @@ pub fn init(id: []const u8, options: Options) !Self {
 
 pub fn deinit(self: *Self) void {
     self.render_texture.unload();
-    if (self.shader) |self_shader| lm.assets.shader.releasePtr(self_shader);
+    if (self.shader) |promise| lm.assets.shader.releasePromise(promise);
 
     self.* = undefined;
 }
@@ -146,7 +146,8 @@ pub fn end(self: *Self) void {
     self.camera.end();
     self.render_texture.end();
 
-    if (self.shader) |shader| shader.activate();
+    const active_shader: ?*rl.Shader = if (self.shader) |promise| promise.upload() catch null else null;
+    if (active_shader) |shader| shader.activate();
 
     if (self.partial) |p| {
         rl.drawTextureRec(
@@ -167,7 +168,7 @@ pub fn end(self: *Self) void {
         );
     }
 
-    if (self.shader) |shader| shader.deactivate();
+    if (active_shader) |shader| shader.deactivate();
 }
 
 pub fn screenToWorldPos(self: *Self, pos: lm.Vector2) lm.Vector2 {
@@ -189,8 +190,8 @@ pub fn worldToScreenPos(self: *Self, pos: lm.Vector2) lm.Vector2 {
 }
 
 pub fn useShader(self: *Self, shader_path: ?[]const u8) void {
-    if (self.shader) |current_shader|
-        lm.assets.shader.releasePtr(current_shader);
+    if (self.shader) |current_promise|
+        lm.assets.shader.releasePromise(current_promise);
 
     self.shader = if (shader_path) |sp|
         lm.assets.shader.get(sp, &.{})

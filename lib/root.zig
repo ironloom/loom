@@ -70,7 +70,7 @@ pub const interpolation = @import("builtin-components/animator/interpolation.zig
 
 pub const Camera = @import("Camera.zig");
 
-pub const assets = @import("assets.zig");
+pub const assets = @import("assets/assets.zig");
 pub const audio = @import("audio.zig");
 pub const display = @import("display.zig");
 pub const time = @import("time.zig");

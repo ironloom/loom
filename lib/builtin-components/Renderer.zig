@@ -10,16 +10,17 @@ pub const DisplayCache = struct {
 
     transform: Transform,
     img_path: []const u8,
+    promise: ?*assets.texture.Promise = null,
     texture: ?*rl.Texture = null,
 
     pub fn free(self: *This) void {
-        if (self.texture == null) return;
-
-        self.texture = null;
-        assets.texture.release(
-            self.img_path,
-            &.{ loom.toi32(self.transform.scale.x), loom.toi32(self.transform.scale.y) },
-        );
+        if (self.texture) |tex| {
+            assets.texture.releasePtr(tex);
+            self.texture = null;
+        } else if (self.promise) |promise| {
+            assets.texture.releasePromise(promise);
+        }
+        self.promise = null;
     }
 };
 
@@ -69,13 +70,8 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
         .transform = Transform{
             .scale = .init(-1, -1),
         },
-        .texture = assets.texture.get(
-            self.img_path,
-            &.{ 1, 1 },
-        ) orelse blk: {
-            std.log.err("texture failed to load: {s}", .{self.img_path});
-            break :blk null;
-        },
+        .promise = null,
+        .texture = null,
     });
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
 }
@@ -96,8 +92,7 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
 
     const has_to_be_updated =
         !transform.scale.equals(display_cache.transform.scale) or
-        !std.mem.eql(u8, self.img_path, display_cache.img_path) or
-        display_cache.texture == null;
+        !std.mem.eql(u8, self.img_path, display_cache.img_path);
 
     if (has_to_be_updated) {
         display_cache.free();
@@ -105,11 +100,18 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
         display_cache.* = DisplayCache{
             .img_path = self.img_path,
             .transform = transform.*,
-            .texture = assets.texture.get(
+            .promise = assets.texture.get(
                 self.img_path,
                 &.{ loom.toi32(tile_size.x), loom.toi32(tile_size.y) },
             ),
+            .texture = null,
         };
+    }
+
+    if (display_cache.texture == null) {
+        if (display_cache.promise) |promise| {
+            display_cache.texture = promise.upload() catch null;
+        }
     }
 
     const texture = display_cache.texture orelse return;

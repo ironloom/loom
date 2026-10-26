@@ -89,7 +89,7 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
         const index = cache_len - j;
         const cached = fonts_cache.items()[index];
 
-        lm.assets.font.release(cached.name, &.{});
+        lm.assets.font.release(cached.name, &.{128});
         _ = fonts_cache.swapRemove(index);
     }
 
@@ -99,7 +99,7 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     fonts.clearAndFree();
 
     for (textures.items()) |*texture| {
-        if (texture.refs == 0) lm.assets.texture.release(texture.name, &.{ 1, 1 });
+        if (texture.refs == 0) lm.assets.texture.releasePtr(texture.texture);
         texture.refs = 0;
     }
 }
@@ -110,7 +110,7 @@ pub fn deinit() void {
         const index = fonts_len - j;
         const current = fonts.items()[index];
 
-        lm.assets.font.release(current.name, &.{});
+        lm.assets.font.release(current.name, &.{128});
         _ = fonts.swapRemove(index);
     }
 
@@ -119,7 +119,7 @@ pub fn deinit() void {
         const index = cache_len - j;
         const cached = fonts_cache.items()[index];
 
-        lm.assets.font.release(cached.name, &.{});
+        lm.assets.font.release(cached.name, &.{128});
         _ = fonts_cache.swapRemove(index);
     }
 
@@ -128,7 +128,7 @@ pub fn deinit() void {
         const index = textures_len - j;
         const texture = textures.items()[index];
 
-        lm.assets.texture.release(texture.name, &.{});
+        lm.assets.texture.releasePtr(texture.texture);
         _ = textures.swapRemove(index);
     }
 
@@ -140,7 +140,9 @@ pub fn deinit() void {
 }
 
 fn loadFont(rel_path: []const u8) !void {
-    renderer.raylib_fonts[font_index] = (lm.assets.font.get(rel_path, &.{}) orelse return error.FontNotFound).*;
+    const promise = lm.assets.font.get(rel_path, &.{128}) orelse return error.FontNotFound;
+    const font = try promise.sync() orelse return error.FontNotFound;
+    renderer.raylib_fonts[font_index] = font.*;
     rl.setTextureFilter(renderer.raylib_fonts[font_index].?.texture, .bilinear);
 }
 
@@ -246,11 +248,14 @@ pub fn image(path: []const u8, size: lm.Vector2) !clay.ImageElementConfig {
         };
     }
 
+    const promise = lm.assets.texture.get(path, &.{ lm.toi32(size.x), lm.toi32(size.y) }) orelse return error.NoImageFound;
+    const texture = try promise.sync() orelse return error.NoImageFound;
+
     const entry: TextureCache = .{
         .name = path,
         .refs = 1,
         .size = size,
-        .texture = lm.assets.texture.get(path, &.{ lm.toi32(size.x), lm.toi32(size.y) }) orelse return error.NoImageFound,
+        .texture = texture,
     };
 
     try textures.append(entry);

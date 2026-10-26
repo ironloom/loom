@@ -415,7 +415,7 @@ pub fn useGlobalBehaviours(self: *Self, behaviour_tuple: anytype) !void {
 
     inline for (behaviour_tuple) |component| {
         const ptr = try self.alloc.create(GlobalBehaviour);
-        ptr.* = try GlobalBehaviour.init(component);
+        ptr.* = try GlobalBehaviour.init(self.alloc, component);
 
         try self.default_behaviours.append(ptr);
     }

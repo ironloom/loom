@@ -2,6 +2,7 @@ const std = @import("std");
 const lm = @import("loom");
 
 const Behaviour = lm.ecs.Behaviour;
+const allocator = std.testing.allocator;
 
 const TestType = struct {
     id: []const u8,
@@ -21,7 +22,7 @@ test "init/fields" {
         myfield: usize = 0,
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expectEqualStrings(behaviour_instance.name, @typeName(MyBehaviour));
@@ -39,7 +40,7 @@ test "init/attachEvents/empty" {
         pub fn End() void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -60,7 +61,7 @@ test "duplicate" {
         pub fn End() void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -72,7 +73,7 @@ test "duplicate" {
     var my_duplicate = try behaviour_instance.duplicate();
     defer my_duplicate.deinit();
 
-    try std.testing.expect(@intFromPtr(my_duplicate.cache) != @intFromPtr(behaviour_instance.cache));
+    try std.testing.expect(@intFromPtr(my_duplicate.cache_buffer.ptr) != @intFromPtr(behaviour_instance.cache_buffer.ptr));
     try std.testing.expectEqual(behaviour_instance.hash, my_duplicate.hash);
 
     try std.testing.expectEqual(behaviour_instance.awake, my_duplicate.awake);
@@ -109,7 +110,7 @@ test "init/attachEvents/self_only" {
         pub fn End(_: *Self) void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -132,7 +133,7 @@ test "init/attachEvents/target_only" {
         pub fn End(_: *TestType) void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -155,7 +156,7 @@ test "init/attachEvents/self_target" {
         pub fn End(_: *Self, _: *TestType) void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -178,7 +179,7 @@ test "init/attachEvents/target_self" {
         pub fn End(_: *TestType, _: *Self) void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -199,7 +200,7 @@ test "init/attachEvents/empty_error" {
         pub fn End() !void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -222,7 +223,7 @@ test "init/attachEvents/self_only_error" {
         pub fn End(_: *Self) !void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -245,7 +246,7 @@ test "init/attachEvents/target_only_error" {
         pub fn End(_: *TestType) !void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -268,7 +269,7 @@ test "init/attachEvents/self_target_error" {
         pub fn End(_: *Self, _: *TestType) !void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -291,7 +292,7 @@ test "init/attachEvents/target_self_error" {
         pub fn End(_: *TestType, _: *Self) !void {}
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.awake != null);
@@ -329,7 +330,7 @@ test "callSafe" {
     };
 
     var target = TestType.init();
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(target.counter == 0);
@@ -364,7 +365,7 @@ test "callSafe - initalised" {
     };
 
     var target = TestType.init();
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(!behaviour_instance.initalised);
@@ -405,7 +406,7 @@ test "isType" {
         not_my_field: isize = 1,
     };
 
-    var behaviour_instance = try Behaviour(TestType).init(MyBehaviour{});
+    var behaviour_instance = try Behaviour(TestType).init(allocator, MyBehaviour{});
     defer behaviour_instance.deinit();
 
     try std.testing.expect(behaviour_instance.isType(MyBehaviour));

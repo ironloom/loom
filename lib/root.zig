@@ -9,14 +9,11 @@ const rl = @import("raylib");
 const clay = @import("zclay");
 const uuid = @import("uuid");
 
-pub const deps = if (builtin.is_test)
-    struct {}
-else
-    struct {
-        pub const rl = @import("raylib");
-        pub const clay = @import("zclay");
-        pub const uuid = @import("uuid");
-    };
+pub const deps = struct {
+    pub const rl = @import("raylib");
+    pub const clay = @import("zclay");
+    pub const uuid = @import("uuid");
+};
 
 pub const window = @import("window.zig");
 
@@ -70,7 +67,7 @@ pub const interpolation = @import("builtin-components/animator/interpolation.zig
 
 pub const Camera = @import("Camera.zig");
 
-pub const assets = @import("assets.zig");
+pub const assets = @import("assets/assets.zig");
 pub const audio = @import("audio.zig");
 pub const display = @import("display.zig");
 pub const time = @import("time.zig");
@@ -455,7 +452,7 @@ pub const allocators = struct {
     pub inline fn generic() Allocator {
         return AI_generic.allocator orelse Blk: {
             switch (builtin.mode) {
-                .Debug, .ReleaseFast => {
+                .debug, .fast => {
                     AI_generic.interface = std.heap.DebugAllocator(.{}).init;
                     AI_generic.allocator = AI_generic.interface.?.allocator();
                 },
@@ -488,18 +485,26 @@ pub const allocators = struct {
     pub const c = struct {
         const CError = error{
             OutOfMemory,
+            DeprecatedInterface,
         };
 
         pub fn create(comptime T: type) !*T {
-            const ptr = try malloc(@sizeOf(T));
-            return @ptrCast(@alignCast(ptr));
+            deprecated("loom no longer supports the allocators.c interface.");
+            return CError.DeprecatedInterface;
         }
 
         pub fn malloc(size: usize) !*anyopaque {
-            return std.c.malloc(size) orelse CError.OutOfMemory;
+            _ = size;
+
+            deprecated("loom no longer supports the allocators.c interface.");
+            return CError.DeprecatedInterface;
         }
 
-        pub const free = std.c.free;
+        pub fn free(ptr: *anyopaque) void {
+            _ = ptr;
+
+            deprecated("loom no longer supports the allocators.c interface.");
+        }
     };
 };
 

@@ -1,20 +1,20 @@
 .{
     .name = .loom,
-    .version = "0.10.2",
+    .version = "0.11.0",
     .fingerprint = 0xc2597137c472d6ae, // Changing this has security and trust implications.
 
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
 
     .dependencies = .{
         .raylib_zig = .{
-            .url = "git+https://github.com/raylib-zig/raylib-zig?ref=devel#97be2c7ae646a2f09856604b138c427c0af1b952",
-            .hash = "raylib_zig-6.0.0-KE8REDJ4BQBu7lKwYNt6R4j5ywPeS37zqW6zrtjCcRwH",
+            .url = "git+https://github.com/raylib-zig/raylib-zig?ref=devel#28bbe30112f605da918db00eff53a75ce1aa9180",
+            .hash = "raylib_zig-6.2.0-KE8RELGmBQDX1v1DqBN57pNxJ-b-MIa1S-M7NXT9Eplr",
         },
         .uuid = .{
-            .url = "git+https://github.com/alexrios/uuid.git#ac4752a42b01a798e87a4e21c7feb32c2f425dc0",
-            .hash = "uuid-2.0.0-ZJ5KhqUyAQCmuZfMn6DUOueobfz7YmlJhjKtOdaSo1ZL",
+            .url = "git+https://github.com/alexrios/uuid.git#ff3c1579cd7564755d8462f9aa0100fa879aa402",
+            .hash = "uuid-2.1.0-ZJ5KhowyAQDu9MTT29CYQhqEKGaZBxGm1eE7Ly63OrWe",
         },
         .zclay = .{
             .url = "git+https://github.com/johan0A/clay-zig-bindings#e0286c488a303b93501944ccde10730cc74ecd58",

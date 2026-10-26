@@ -222,6 +222,7 @@ fn hashFieldNames(field_names: []const [:0]const u8) comptime_int {
 }
 
 pub inline fn calculateHash(comptime T: type) u64 {
+    @setEvalBranchQuota(256_000);
     const struct_hash: comptime_int = comptime switch (@typeInfo(T)) {
         .@"struct" => |info| hashFieldNames(info.field_names),
         .@"enum" => |info| hashFieldNames(info.field_names),

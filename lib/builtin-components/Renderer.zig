@@ -1,7 +1,7 @@
 const std = @import("std");
-const loom = @import("../root.zig");
+const lm = @import("../root.zig");
 const rl = @import("raylib");
-const assets = loom.assets;
+const assets = lm.assets;
 
 const Transform = @import("Transform.zig");
 
@@ -27,7 +27,7 @@ pub const DisplayCache = struct {
 const Self = @This();
 
 img_path: []const u8,
-tile_size: ?loom.Vector2 = null,
+tile_size: ?lm.Vector2 = null,
 tint: rl.Color = rl.Color.white,
 fill_color: ?rl.Color = null,
 
@@ -42,7 +42,7 @@ pub fn sprite(path: []const u8) Self {
     };
 }
 
-pub fn tile(path: []const u8, tile_size: loom.Vector2) Self {
+pub fn tile(path: []const u8, tile_size: lm.Vector2) Self {
     return Self{
         .img_path = path,
         .tile_size = tile_size,
@@ -53,7 +53,7 @@ pub fn init(config: struct {
     img_path: []const u8 = "[INVALID]",
     tint: rl.Color = rl.Color.white,
 
-    tile_size: ?loom.Vector2 = null,
+    tile_size: ?lm.Vector2 = null,
     fill_color: ?rl.Color = null,
 }) Self {
     return Self{
@@ -64,7 +64,7 @@ pub fn init(config: struct {
     };
 }
 
-pub fn Awake(self: *Self, entity: *loom.Entity) !void {
+pub fn Awake(self: *Self, entity: *lm.Entity) !void {
     try entity.addComponent(DisplayCache{
         .img_path = self.img_path,
         .transform = Transform{
@@ -76,15 +76,15 @@ pub fn Awake(self: *Self, entity: *loom.Entity) !void {
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
 }
 
-pub fn Start(self: *Self, entity: *loom.Entity) !void {
+pub fn Start(self: *Self, entity: *lm.Entity) !void {
     if (entity.getComponent(Transform)) |transform| {
         self.transform = transform;
     }
 }
 
-pub fn Update(self: *Self, entity: *loom.Entity) !void {
-    const display_cache: *DisplayCache = try loom.ensureComponent(self.display_cache);
-    const transform: *Transform = try loom.ensureComponent(self.transform);
+pub fn Update(self: *Self, entity: *lm.Entity) !void {
+    const display_cache: *DisplayCache = try lm.ensureComponent(self.display_cache);
+    const transform: *Transform = try lm.ensureComponent(self.transform);
 
     if (transform.scale.x == 0 or transform.scale.y == 0) return;
 
@@ -102,7 +102,7 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
             .transform = transform.*,
             .promise = assets.texture.get(
                 self.img_path,
-                &.{ loom.toi32(tile_size.x), loom.toi32(tile_size.y) },
+                &.{ lm.toi32(tile_size.x), lm.toi32(tile_size.y) },
             ),
             .texture = null,
         };
@@ -115,24 +115,24 @@ pub fn Update(self: *Self, entity: *loom.Entity) !void {
     }
 
     const texture = display_cache.texture orelse return;
-    try loom.display.add(.{
-        .texture = texture.*,
-        .transform = Transform{
-            .position = transform.*.position.add(
-                if (self.parent) |parent|
-                    parent.position
-                else
-                    loom.vec3(),
-            ),
-            .rotation = transform.*.rotation,
-            .scale = transform.*.scale,
-        },
-        .display = .{
-            .img_path = self.img_path,
-            .tint = self.tint,
+    try lm.display.addRenderer(.{
+        .renderer = .{ .texture = .{
+            .texture = texture.*,
+            .transform = Transform{
+                .position = transform.*.position.add(
+                    if (self.parent) |parent|
+                        parent.position
+                    else
+                        lm.vec3(),
+                ),
+                .rotation = transform.*.rotation,
+                .scale = transform.*.scale,
+            },
             .fill_color = self.fill_color,
-        },
-        .entity = entity,
+            .tint = self.tint,
+            .entity = entity,
+        } },
+        .index = lm.toisize(transform.position.z),
     });
 }
 

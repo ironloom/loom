@@ -12,20 +12,36 @@ pub fn clayColorToRaylibColor(color: cl.Color) rl.Color {
     };
 }
 
-pub var raylib_fonts: [10]?rl.Font = .{null} ** 10;
+pub var raylib_fonts: [10]?rl.Font = @splat(null);
 
 pub fn clayRaylibRender(render_commands: *cl.ClayArray(cl.RenderCommand), allocator: std.mem.Allocator) !void {
+    const screen_w: f32 = @floatFromInt(rl.getScreenWidth());
+    const screen_h: f32 = @floatFromInt(rl.getScreenHeight());
+
     var i: usize = 0;
     while (i < render_commands.length) : (i += 1) {
         const render_command = cl.renderCommandArrayGet(render_commands, @intCast(i));
         const bounding_box = render_command.bounding_box;
+
+        // Skip completely offscreen or collapsed elements (except scissors which manage state)
+        if (render_command.command_type != .scissor_start and render_command.command_type != .scissor_end) {
+            if (bounding_box.width <= 0 or bounding_box.height <= 0) continue;
+            if (bounding_box.x + bounding_box.width <= 0 or
+                bounding_box.y + bounding_box.height <= 0 or
+                bounding_box.x >= screen_w or
+                bounding_box.y >= screen_h)
+            {
+                continue;
+            }
+        }
+
         switch (render_command.command_type) {
             .none => {},
             .text => {
                 const config = render_command.render_data.text;
                 const text = config.string_contents.chars[0..@intCast(config.string_contents.length)];
                 // Raylib uses standard C strings so isn't compatible with cheap slices, we need to clone the string to append null terminator
-                const cloned = try allocator.dupeZ(u8, text);
+                const cloned = try allocator.dupeSentinel(u8, text, 0);
                 defer allocator.free(cloned);
                 const fontToUse: rl.Font = raylib_fonts[config.font_id].?;
                 rl.setTextLineSpacing(config.line_height);
@@ -53,18 +69,28 @@ pub fn clayRaylibRender(render_commands: *cl.ClayArray(cl.RenderCommand), alloca
                 );
             },
             .scissor_start => {
+                const x = @max(0, @round(bounding_box.x));
+                const y = @max(0, @round(bounding_box.y));
+                const right = @min(screen_w, @round(bounding_box.x + bounding_box.width));
+                const bottom = @min(screen_h, @round(bounding_box.y + bounding_box.height));
+                const width = @max(0, right - x);
+                const height = @max(0, bottom - y);
                 rl.beginScissorMode(
-                    @intFromFloat(@round(bounding_box.x)),
-                    @intFromFloat(@round(bounding_box.y)),
-                    @intFromFloat(@round(bounding_box.width)),
-                    @intFromFloat(@round(bounding_box.height)),
+                    @intFromFloat(x),
+                    @intFromFloat(y),
+                    @intFromFloat(width),
+                    @intFromFloat(height),
                 );
             },
             .scissor_end => rl.endScissorMode(),
             .rectangle => {
                 const config = render_command.render_data.rectangle;
                 if (config.corner_radius.top_left > 0) {
-                    const radius: f32 = (config.corner_radius.top_left * 2) / @min(bounding_box.width, bounding_box.height);
+                    const min_dim = @min(bounding_box.width, bounding_box.height);
+                    const radius: f32 = if (min_dim > 0)
+                        (config.corner_radius.top_left * 2) / min_dim
+                    else
+                        0;
                     rl.drawRectangleRounded(
                         rl.Rectangle{
                             .x = bounding_box.x,

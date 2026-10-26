@@ -22,6 +22,10 @@ pub fn new(config: clay.ElementDeclaration) *const fn (void) void {
 }
 
 pub const text = clay.text;
+pub fn textFmt(comptime format: []const u8, args: anytype, config: clay.TextElementConfig) void {
+    const formatted_text = std.fmt.allocPrint(arena.allocator(), format, args) catch "TEXT FORMAT FAILED";
+    text(formatted_text, config);
+}
 
 var memory: []u8 = undefined;
 
@@ -53,6 +57,7 @@ var fonts_cache: lm.List(FontEntry) = undefined;
 var font_index: usize = 1;
 var alloc: std.mem.Allocator = undefined;
 var last_window_size: lm.Vector2 = .init(0, 0);
+var arena: std.heap.ArenaAllocator = undefined;
 
 pub fn init(allocator: Allocator) !void {
     fonts = .init(allocator);
@@ -60,12 +65,16 @@ pub fn init(allocator: Allocator) !void {
     textures = .init(allocator);
     alloc = allocator;
 
+    arena = .init(allocator);
+
     const min_memory_size: usize = lm.coerceTo(usize, clay.minMemorySize()).?;
     memory = try alloc.alloc(u8, min_memory_size);
 
-    const arena: clay.Arena = .init(memory);
+    const clay_arena: clay.Arena = .init(memory);
 
-    _ = clay.initialize(arena, .{ .h = 1280, .w = 720 }, .{});
+    const win_size = lm.window.size.get();
+    last_window_size = win_size;
+    _ = clay.initialize(clay_arena, .{ .w = win_size.x, .h = win_size.y }, .{});
     clay.setMeasureTextFunction(void, {}, renderer.measureText);
 
     renderer.raylib_fonts[0] = try rl.getFontDefault();
@@ -89,7 +98,7 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
         const index = cache_len - j;
         const cached = fonts_cache.items()[index];
 
-        lm.assets.font.release(cached.name, &.{});
+        lm.assets.font.release(cached.name, &.{128});
         _ = fonts_cache.swapRemove(index);
     }
 
@@ -99,9 +108,11 @@ pub fn update(commands: *clay.ClayArray(clay.RenderCommand)) !void {
     fonts.clearAndFree();
 
     for (textures.items()) |*texture| {
-        if (texture.refs == 0) lm.assets.texture.release(texture.name, &.{ 1, 1 });
+        if (texture.refs == 0) lm.assets.texture.releasePtr(texture.texture);
         texture.refs = 0;
     }
+
+    _ = arena.reset(.retain_capacity);
 }
 
 pub fn deinit() void {
@@ -110,7 +121,7 @@ pub fn deinit() void {
         const index = fonts_len - j;
         const current = fonts.items()[index];
 
-        lm.assets.font.release(current.name, &.{});
+        lm.assets.font.release(current.name, &.{128});
         _ = fonts.swapRemove(index);
     }
 
@@ -119,7 +130,7 @@ pub fn deinit() void {
         const index = cache_len - j;
         const cached = fonts_cache.items()[index];
 
-        lm.assets.font.release(cached.name, &.{});
+        lm.assets.font.release(cached.name, &.{128});
         _ = fonts_cache.swapRemove(index);
     }
 
@@ -128,7 +139,7 @@ pub fn deinit() void {
         const index = textures_len - j;
         const texture = textures.items()[index];
 
-        lm.assets.texture.release(texture.name, &.{});
+        lm.assets.texture.releasePtr(texture.texture);
         _ = textures.swapRemove(index);
     }
 
@@ -137,10 +148,13 @@ pub fn deinit() void {
     textures.deinit();
 
     alloc.free(memory);
+    arena.deinit();
 }
 
 fn loadFont(rel_path: []const u8) !void {
-    renderer.raylib_fonts[font_index] = (lm.assets.font.get(rel_path, &.{}) orelse return error.FontNotFound).*;
+    const promise = lm.assets.font.get(rel_path, &.{128}) orelse return error.FontNotFound;
+    const font = try promise.sync() orelse return error.FontNotFound;
+    renderer.raylib_fonts[font_index] = font.*;
     rl.setTextureFilter(renderer.raylib_fonts[font_index].?.texture, .bilinear);
 }
 
@@ -246,11 +260,14 @@ pub fn image(path: []const u8, size: lm.Vector2) !clay.ImageElementConfig {
         };
     }
 
+    const promise = lm.assets.texture.get(path, &.{ lm.toi32(size.x), lm.toi32(size.y) }) orelse return error.NoImageFound;
+    const texture = try promise.sync() orelse return error.NoImageFound;
+
     const entry: TextureCache = .{
         .name = path,
         .refs = 1,
         .size = size,
-        .texture = lm.assets.texture.get(path, &.{ lm.toi32(size.x), lm.toi32(size.y) }) orelse return error.NoImageFound,
+        .texture = texture,
     };
 
     try textures.append(entry);

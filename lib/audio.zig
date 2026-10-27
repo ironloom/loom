@@ -6,9 +6,12 @@ const rl = @import("raylib");
 const assets = loom.assets;
 const Sound = rl.Sound;
 
+const DEFAULT_SOUND_LIFE_TICKS: usize = 300;
+const DEFAULT_TICKS_PER_SECOND: f32 = 20;
+
 const Cached = struct {
     sound: *Sound,
-    life: usize = 15,
+    life: usize = DEFAULT_SOUND_LIFE_TICKS,
     playing: bool = false,
     volume: f32 = 1,
     looping: bool = false,
@@ -18,19 +21,21 @@ const Cached = struct {
 
 var audio_cache: std.StringHashMap(Cached) = undefined;
 var is_alive = false;
+var last_tick_seconds: f32 = 0;
 
 pub fn init() void {
     if (is_alive) return;
 
     audio_cache = .init(loom.allocators.generic());
+    last_tick_seconds = 0;
     is_alive = true;
 }
 
 pub fn deinit() void {
     if (!is_alive) return;
 
-    var iter = audio_cache.iterator();
-    while (iter.next()) |entry| {
+    var cache_iterator = audio_cache.iterator();
+    while (cache_iterator.next()) |entry| {
         assets.sound.releasePtr(entry.value_ptr.sound);
     }
 
@@ -41,17 +46,35 @@ pub fn deinit() void {
 pub fn update() void {
     if (!is_alive) return;
 
-    var iter = audio_cache.iterator();
+    const current_time_seconds = loom.time.appTime();
+    const ticks_per_second: f32 = if (loom.activeScene()) |scene|
+        loom.tof32(scene.ticks_per_second)
+    else
+        DEFAULT_TICKS_PER_SECOND;
 
-    while (iter.next()) |entry| {
+    if (last_tick_seconds + (1.0 / ticks_per_second) > current_time_seconds) return;
+    last_tick_seconds = current_time_seconds;
+
+    var expired_paths = loom.List([]const u8).init(loom.allocators.generic());
+    defer expired_paths.deinit();
+
+    var cache_iterator = audio_cache.iterator();
+    while (cache_iterator.next()) |entry| {
         const path = entry.key_ptr.*;
-        const value_ptr = entry.value_ptr;
+        const cached_sound = entry.value_ptr;
 
-        if (isPlaying(path)) continue;
+        if (isPlaying(path)) {
+            cached_sound.life = DEFAULT_SOUND_LIFE_TICKS;
+            continue;
+        }
 
-        value_ptr.life -|= 1;
-        if (value_ptr.life != 0) continue;
+        cached_sound.life -|= 1;
+        if (cached_sound.life == 0) {
+            expired_paths.append(path) catch continue;
+        }
+    }
 
+    for (expired_paths.items()) |path| {
         unload(path);
     }
 }
@@ -84,6 +107,8 @@ pub fn play(path: []const u8) !void {
         break :add audio_cache.getPtr(path) orelse return;
     };
 
+    cached.life = DEFAULT_SOUND_LIFE_TICKS;
+    cached.playing = true;
     rl.playSound(cached.sound.*);
 }
 

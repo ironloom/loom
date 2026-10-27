@@ -165,17 +165,18 @@ fn loadFont(rel_path: []const u8) !void {
 }
 
 /// Get the corresponding font id for a file path
-pub fn fontID(rel_path: []const u8) u16 {
+pub fn fontID(relative_path: []const u8) u16 {
     for (fonts.items()) |font_entry| {
-        if (!std.mem.eql(u8, font_entry.name, rel_path)) continue;
+        if (!std.mem.eql(u8, font_entry.name, relative_path)) continue;
         if (renderer.raylib_fonts[font_entry.id] == null) continue;
         return font_entry.id;
     }
 
     for (fonts_cache.items()) |font_entry| {
-        if (!std.mem.eql(u8, font_entry.name, rel_path)) continue;
+        if (!std.mem.eql(u8, font_entry.name, relative_path)) continue;
         if (renderer.raylib_fonts[font_entry.id] == null) continue;
 
+        _ = lm.assets.font.get(relative_path, &.{128}) orelse return 0;
         fonts.append(font_entry) catch return 0;
         return font_entry.id;
     }
@@ -185,8 +186,8 @@ pub fn fontID(rel_path: []const u8) u16 {
         font_index = 1;
     }
 
-    const font_entry: FontEntry = .init(rel_path, font_index);
-    loadFont(rel_path) catch return 0;
+    const font_entry: FontEntry = .init(relative_path, font_index);
+    loadFont(relative_path) catch return 0;
     fonts.append(font_entry) catch return 0;
 
     return font_entry.id;
@@ -259,6 +260,7 @@ pub const Color = struct {
 pub fn image(path: []const u8, size: lm.Vector2) !clay.ImageElementConfig {
     for (textures.items()) |*texture| {
         if (!std.mem.eql(u8, path, texture.name)) continue;
+        if (!texture.size.equals(size)) continue;
 
         texture.refs += 1;
         return clay.ImageElementConfig{

@@ -7,24 +7,20 @@ pub fn parse(
     filetype: []const u8,
     path: []const u8,
     mod: []const i32,
-) !rl.Wave {
+) !rl.Sound {
     _ = path;
     _ = mod;
 
     const str: [:0]const u8 = try lm.allocators.generic().dupeSentinel(u8, filetype, 0);
     defer lm.allocators.generic().free(str);
 
-    return try rl.loadWaveFromMemory(str, data);
-}
+    const wave = try rl.loadWaveFromMemory(str, data);
+    defer rl.unloadWave(wave);
 
-pub fn releaseRaw(raw: rl.Wave) void {
-    rl.unloadWave(raw);
-}
-
-pub fn upload(raw: rl.Wave) !rl.Sound {
-    return rl.loadSoundFromWave(raw);
+    return rl.loadSoundFromWave(wave);
 }
 
 pub fn release(uploaded: rl.Sound) void {
     rl.unloadSound(uploaded);
 }
+

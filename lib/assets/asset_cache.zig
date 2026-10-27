@@ -3,7 +3,6 @@ const loom = @import("../root.zig");
 const builtin = @import("builtin");
 
 const files = @import("files.zig");
-const AssetPromise = @import("asset_promise.zig").AssetPromise;
 
 const Allocator = std.mem.Allocator;
 
@@ -36,56 +35,28 @@ fn RefCounter(comptime T: type) type {
     };
 }
 
-fn ParseFn(comptime Raw: type) type {
-    return *const fn (data: []const u8, filetype: []const u8, path: []const u8, mod: []const i32) anyerror!Raw;
-}
-fn UploadFn(comptime Raw: type, comptime Uploaded: type) type {
-    return *const fn (Raw) anyerror!Uploaded;
-}
-fn ReleaseFn(comptime Uploaded: type) type {
-    return *const fn (data: Uploaded) void;
-}
-
-pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definitions: type) type {
+pub fn AssetCache(comptime T: type, comptime Definitions: type) type {
     return struct {
-        pub const Promise = AssetPromise(Raw, Uploaded);
-        const HashMapType = std.AutoHashMap(u64, RefCounter(Uploaded));
-        const PromiseMapType = std.AutoHashMap(u64, *Promise);
+        pub const Value = T;
+        const HashMapType = std.AutoHashMap(u64, RefCounter(T));
 
         var hash_map: ?HashMapType = null;
-        var promise_map: ?PromiseMapType = null;
 
-        const parseFunction: ParseFn(Raw) = if (@hasDecl(Definitions, "parse"))
-            @field(Definitions, "parse")
-        else
-            @compileError("Definitions struct must have parse() decl.");
+        const has_parse = @hasDecl(Definitions, "parse");
+        const has_upload = @hasDecl(Definitions, "upload");
+        const has_release = @hasDecl(Definitions, "release");
+        const has_release_raw = @hasDecl(Definitions, "releaseRaw");
 
-        const uploadFunction: UploadFn(Raw, Uploaded) = if (@hasDecl(Definitions, "upload"))
-            @field(Definitions, "upload")
-        else
-            @compileError("Definitions struct must have upload() decl.");
-
-        const releaseFunction: ReleaseFn(Uploaded) = if (@hasDecl(Definitions, "release"))
-            @field(Definitions, "release")
-        else
-            @compileError("Definitions struct must have release() decl.");
-
-        const releaseRawFunction: ?*const fn (Raw) void = if (@hasDecl(Definitions, "releaseRaw"))
-            @field(Definitions, "releaseRaw")
-        else
-            null;
+        comptime {
+            if (!has_parse and !has_upload) {
+                @compileError("Definitions struct must have a parse() or upload() declaration.");
+            }
+        }
 
         fn hashMap() *HashMapType {
             return &(hash_map orelse Blk: {
                 hash_map = HashMapType.init(loom.allocators.generic());
                 break :Blk hash_map.?;
-            });
-        }
-
-        fn promiseMap() *PromiseMapType {
-            return &(promise_map orelse Blk: {
-                promise_map = PromiseMapType.init(loom.allocators.generic());
-                break :Blk promise_map.?;
             });
         }
 
@@ -96,26 +67,14 @@ pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definiti
             while (hmap_iter.next()) |entry| {
                 var ref_counter = entry.value_ptr.*;
 
-                @call(.auto, releaseFunction, .{ref_counter.value.*});
+                if (has_release) {
+                    @call(.auto, Definitions.release, .{ref_counter.value.*});
+                }
                 ref_counter.counter = 0;
                 ref_counter.deinit();
             }
             hmap.deinit();
             hash_map = null;
-
-            const pmap = promiseMap();
-            var pmap_iter = pmap.iterator();
-            while (pmap_iter.next()) |entry| {
-                const promise = entry.value_ptr.*;
-                if (promise.raw_data) |raw| {
-                    if (releaseRawFunction) |relRaw| {
-                        relRaw(raw);
-                    }
-                }
-                loom.allocators.generic().destroy(promise);
-            }
-            pmap.deinit();
-            promise_map = null;
         }
 
         fn createAssetHash(str: []const u8, mod: u64) u64 {
@@ -149,103 +108,51 @@ pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definiti
             return createAssetHash(rel_path, loom.coerceTo(u64, modifier_hash) orelse 0);
         }
 
-        const LoadContext = struct {
-            promise: *Promise,
-            path: []const u8,
-            modifiers: []const i32,
-            allocator: Allocator,
-
-            fn run(ctx: @This()) void {
-                defer {
-                    ctx.allocator.free(ctx.path);
-                    ctx.allocator.free(ctx.modifiers);
-                }
-
-                const data = files.getData(ctx.path) catch {
-                    ctx.promise.status.store(.failed, .release);
-                    return;
-                };
-                defer ctx.allocator.free(data);
-
-                const filetype = files.getFileExt(ctx.path) catch {
-                    ctx.promise.status.store(.failed, .release);
-                    return;
-                };
-                defer ctx.allocator.free(filetype);
-
-                const parsed: Raw = @call(.auto, parseFunction, .{
-                    data,
-                    filetype,
-                    ctx.path,
-                    ctx.modifiers,
-                }) catch {
-                    ctx.promise.status.store(.failed, .release);
-                    return;
-                };
-
-                ctx.promise.raw_data = parsed;
-                ctx.promise.status.store(.cpu_ready, .release);
-            }
-        };
-
-        pub fn store(rel_path: []const u8, modifiers: []const i32) !*Promise {
+        pub fn store(rel_path: []const u8, modifiers: []const i32) !*T {
             const HASH = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
-            const pmap = promiseMap();
-
-            if (pmap.get(HASH)) |promise_ptr| {
-                const hmap = hashMap();
-                if (hmap.getPtr(HASH)) |rc| {
-                    rc.counter += 1;
-                } else {
-                    promise_ptr.ref_count += 1;
-                }
-                return promise_ptr;
-            }
-
-            const promise = try loom.allocators.generic().create(Promise);
-            promise.* = .{
-                .hash = HASH,
-                .uploadFn = upload,
-                .releaseRawFn = releaseRawFunction,
-                .status = .init(.pending),
-                .raw_data = null,
-                .value = null,
-                .ref_count = 1,
-            };
-            try pmap.put(HASH, promise);
-
-            const duped_path = try loom.allocators.generic().dupe(u8, rel_path);
-            errdefer loom.allocators.generic().free(duped_path);
-
-            const duped_modifiers = try loom.allocators.generic().dupe(i32, modifiers);
-            errdefer loom.allocators.generic().free(duped_modifiers);
-
-            const ctx = LoadContext{
-                .promise = promise,
-                .path = duped_path,
-                .modifiers = duped_modifiers,
-                .allocator = loom.allocators.generic(),
-            };
-
-            const thread = std.Thread.spawn(.{}, LoadContext.run, .{ctx}) catch |err| {
-                promise.status.store(.failed, .release);
-                return err;
-            };
-            thread.detach();
-
-            return promise;
-        }
-
-        pub fn upload(hash: u64, raw: Raw, initial_ref_count: usize) !*Uploaded {
             const hmap = hashMap();
-            if (hmap.getPtr(hash)) |ref_counter| {
-                return ref_counter.value;
+
+            if (hmap.getPtr(HASH)) |rc| {
+                return rc.get();
             }
 
-            const value: Uploaded = try @call(.auto, uploadFunction, .{raw});
-            var ref_counter = try RefCounter(Uploaded).init(loom.allocators.generic(), value);
-            ref_counter.counter = initial_ref_count;
-            try hmap.put(hash, ref_counter);
+            const data = try files.getData(rel_path);
+            defer loom.allocators.generic().free(data);
+
+            const filetype = try files.getFileExt(rel_path);
+            defer loom.allocators.generic().free(filetype);
+
+            const parsed: T = Blk: {
+                if (has_parse and has_upload) {
+                    const raw = try @call(.auto, Definitions.parse, .{
+                        data,
+                        filetype,
+                        rel_path,
+                        modifiers,
+                    });
+                    defer if (has_release_raw) @call(.auto, Definitions.releaseRaw, .{raw});
+                    break :Blk try @call(.auto, Definitions.upload, .{raw});
+                } else if (has_parse) {
+                    break :Blk try @call(.auto, Definitions.parse, .{
+                        data,
+                        filetype,
+                        rel_path,
+                        modifiers,
+                    });
+                } else if (has_upload) {
+                    break :Blk try @call(.auto, Definitions.upload, .{
+                        data,
+                        filetype,
+                        rel_path,
+                        modifiers,
+                    });
+                } else {
+                    unreachable;
+                }
+            };
+
+            const ref_counter = try RefCounter(T).init(loom.allocators.generic(), parsed);
+            try hmap.put(HASH, ref_counter);
             return ref_counter.value;
         }
 
@@ -258,19 +165,11 @@ pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definiti
                 if (ref_counter.counter > 0)
                     return;
 
-                @call(.auto, releaseFunction, .{ref_counter.value.*});
+                if (has_release) {
+                    @call(.auto, Definitions.release, .{ref_counter.value.*});
+                }
                 ref_counter.deinit();
                 _ = hmap.remove(hash);
-
-                const pmap = promiseMap();
-                if (pmap.fetchRemove(hash)) |kv| {
-                    loom.allocators.generic().destroy(kv.value);
-                }
-            } else {
-                const pmap = promiseMap();
-                if (pmap.get(hash)) |promise| {
-                    if (promise.ref_count > 0) promise.ref_count -= 1;
-                }
             }
         }
 
@@ -279,11 +178,7 @@ pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definiti
             releaseHash(path_hash);
         }
 
-        pub fn releasePromise(promise: *Promise) void {
-            releaseHash(promise.hash);
-        }
-
-        pub fn releasePtr(ptr: *Uploaded) void {
+        pub fn releasePtr(ptr: *T) void {
             const hmap = hashMap();
 
             var iter = hmap.iterator();
@@ -297,18 +192,12 @@ pub fn AssetCache(comptime Raw: type, comptime Uploaded: type, comptime Definiti
             }
         }
 
-        pub fn get(rel_path: []const u8, modifiers: []const i32) ?*Promise {
+        pub fn get(rel_path: []const u8, modifiers: []const i32) ?*T {
             const HASH = parseModifierHashAndGetCompleteHash(rel_path, modifiers);
-            const pmap = promiseMap();
+            const hmap = hashMap();
 
-            if (pmap.get(HASH)) |promise_ptr| {
-                const hmap = hashMap();
-                if (hmap.getPtr(HASH)) |rc| {
-                    rc.counter += 1;
-                } else {
-                    promise_ptr.ref_count += 1;
-                }
-                return promise_ptr;
+            if (hmap.getPtr(HASH)) |rc| {
+                return rc.get();
             }
 
             return store(rel_path, modifiers) catch null;

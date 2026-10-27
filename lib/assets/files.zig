@@ -10,16 +10,29 @@ pub const paths = struct {
         debug: ?[]const u8 = null,
         release: ?[]const u8 = null,
     }) void {
-        if (config.debug) |d|
-            debug = d;
+        if (config.debug) |debug_path|
+            debug = debug_path;
 
-        if (config.release) |r|
-            release = r;
+        if (config.release) |release_path|
+            release = release_path;
+
+        deinit();
     }
 };
 
+var cached_base_path: ?[:0]const u8 = null;
+
+pub fn deinit() void {
+    if (cached_base_path) |base_path| {
+        lm.allocators.generic().free(base_path);
+        cached_base_path = null;
+    }
+}
+
 pub fn getBase() ![]const u8 {
-    const exepath = switch (builtin.mode) {
+    if (cached_base_path) |base_path| return base_path;
+
+    const executable_path = switch (builtin.mode) {
         .debug => try std.Io.Dir.cwd().realPathFileAlloc(
             lm.io.singleThreaded(),
             ".",
@@ -30,40 +43,43 @@ pub fn getBase() ![]const u8 {
             lm.allocators.generic(),
         ),
     };
-    defer lm.allocators.generic().free(exepath);
+    defer lm.allocators.generic().free(executable_path);
 
-    const path = try std.fmt.allocPrint(lm.allocators.generic(), "{s}{s}{s}", .{
-        exepath, std.fs.path.sep_str,
+    const combined_path = try std.fmt.allocPrint(lm.allocators.generic(), "{s}{s}{s}", .{
+        executable_path, std.fs.path.sep_str,
         switch (builtin.mode) {
             .debug => paths.debug,
             else => paths.release,
         },
     });
-    defer lm.allocators.generic().free(path);
+    defer lm.allocators.generic().free(combined_path);
 
-    const result = try std.Io.Dir.cwd().realPathFileAlloc(lm.io.singleThreaded(), path, lm.allocators.generic());
-    defer lm.allocators.generic().free(result);
+    const resolved_base_path = try std.Io.Dir.cwd().realPathFileAlloc(
+        lm.io.singleThreaded(),
+        combined_path,
+        lm.allocators.generic(),
+    );
+    cached_base_path = resolved_base_path;
 
-    return std.fmt.allocPrint(lm.allocators.generic(), "{s}", .{result});
+    return resolved_base_path;
 }
 
-pub fn getFilePath(rel_path: []const u8) ![]const u8 {
-    const basepath = try getBase();
-    defer lm.allocators.generic().free(basepath);
+pub fn getFilePath(relative_path: []const u8) ![]const u8 {
+    const base_path = try getBase();
 
-    return try std.fmt.allocPrint(lm.allocators.generic(), "{s}{s}{s}", .{ basepath, std.fs.path.sep_str, rel_path });
+    return try std.fmt.allocPrint(lm.allocators.generic(), "{s}{s}{s}", .{ base_path, std.fs.path.sep_str, relative_path });
 }
 
-pub fn getFileExt(rel_path: []const u8) ![]const u8 {
-    const index = std.mem.lastIndexOf(u8, rel_path, ".") orelse 0;
-    const buf = try lm.allocators.generic().alloc(u8, rel_path.len - index);
-    std.mem.copyForwards(u8, buf, rel_path[index..]);
+pub fn getFileExt(relative_path: []const u8) ![]const u8 {
+    const extension_index = std.mem.lastIndexOf(u8, relative_path, ".") orelse 0;
+    const extension_buffer = try lm.allocators.generic().alloc(u8, relative_path.len - extension_index);
+    std.mem.copyForwards(u8, extension_buffer, relative_path[extension_index..]);
 
-    return buf;
+    return extension_buffer;
 }
 
-pub fn getData(pth: []const u8) ![]const u8 {
-    const real_path = try getFilePath(pth);
+pub fn getData(relative_path: []const u8) ![]const u8 {
+    const real_path = try getFilePath(relative_path);
     defer lm.allocators.generic().free(real_path);
 
     const read_file = try std.Io.Dir.cwd().openFile(

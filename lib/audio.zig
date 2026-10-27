@@ -6,10 +6,12 @@ const rl = @import("raylib");
 const assets = loom.assets;
 const Sound = rl.Sound;
 
+const DEFAULT_SOUND_LIFE_TICKS: usize = 300;
+const DEFAULT_TICKS_PER_SECOND: f32 = 20;
+
 const Cached = struct {
-    promise: *assets.sound.Promise,
-    sound: ?*Sound = null,
-    life: usize = 15,
+    sound: *Sound,
+    life: usize = DEFAULT_SOUND_LIFE_TICKS,
     playing: bool = false,
     volume: f32 = 1,
     looping: bool = false,
@@ -19,24 +21,22 @@ const Cached = struct {
 
 var audio_cache: std.StringHashMap(Cached) = undefined;
 var is_alive = false;
+var last_tick_seconds: f32 = 0;
 
 pub fn init() void {
     if (is_alive) return;
 
     audio_cache = .init(loom.allocators.generic());
+    last_tick_seconds = 0;
     is_alive = true;
 }
 
 pub fn deinit() void {
     if (!is_alive) return;
 
-    var iter = audio_cache.iterator();
-    while (iter.next()) |entry| {
-        if (entry.value_ptr.sound) |sound| {
-            assets.sound.releasePtr(sound);
-        } else {
-            assets.sound.releasePromise(entry.value_ptr.promise);
-        }
+    var cache_iterator = audio_cache.iterator();
+    while (cache_iterator.next()) |entry| {
+        assets.sound.releasePtr(entry.value_ptr.sound);
     }
 
     is_alive = false;
@@ -46,17 +46,35 @@ pub fn deinit() void {
 pub fn update() void {
     if (!is_alive) return;
 
-    var iter = audio_cache.iterator();
+    const current_time_seconds = loom.time.appTime();
+    const ticks_per_second: f32 = if (loom.activeScene()) |scene|
+        loom.tof32(scene.ticks_per_second)
+    else
+        DEFAULT_TICKS_PER_SECOND;
 
-    while (iter.next()) |entry| {
+    if (last_tick_seconds + (1.0 / ticks_per_second) > current_time_seconds) return;
+    last_tick_seconds = current_time_seconds;
+
+    var expired_paths = loom.List([]const u8).init(loom.allocators.generic());
+    defer expired_paths.deinit();
+
+    var cache_iterator = audio_cache.iterator();
+    while (cache_iterator.next()) |entry| {
         const path = entry.key_ptr.*;
-        const value_ptr = entry.value_ptr;
+        const cached_sound = entry.value_ptr;
 
-        if (isPlaying(path)) continue;
+        if (isPlaying(path)) {
+            cached_sound.life = DEFAULT_SOUND_LIFE_TICKS;
+            continue;
+        }
 
-        value_ptr.life -|= 1;
-        if (value_ptr.life != 0) continue;
+        cached_sound.life -|= 1;
+        if (cached_sound.life == 0) {
+            expired_paths.append(path) catch continue;
+        }
+    }
 
+    for (expired_paths.items()) |path| {
         unload(path);
     }
 }
@@ -66,11 +84,10 @@ pub fn load(path: []const u8) !void {
 
     if (audio_cache.contains(path)) return;
 
-    const promise = assets.sound.get(path, &.{}) orelse return;
+    const sound = assets.sound.get(path, &.{}) orelse return;
 
     try audio_cache.put(path, Cached{
-        .promise = promise,
-        .sound = promise.sync() catch null,
+        .sound = sound,
         .playing = true,
     });
 }
@@ -79,11 +96,7 @@ pub fn unload(path: []const u8) void {
     if (!is_alive) return;
     const entry = audio_cache.fetchRemove(path) orelse return;
 
-    if (entry.value.sound) |sound| {
-        assets.sound.releasePtr(sound);
-    } else {
-        assets.sound.releasePromise(entry.value.promise);
-    }
+    assets.sound.releasePtr(entry.value.sound);
 }
 
 pub fn play(path: []const u8) !void {
@@ -94,12 +107,9 @@ pub fn play(path: []const u8) !void {
         break :add audio_cache.getPtr(path) orelse return;
     };
 
-    if (cached.sound == null) {
-        cached.sound = cached.promise.sync() catch null;
-    }
-    const sound = cached.sound orelse return;
-
-    rl.playSound(sound.*);
+    cached.life = DEFAULT_SOUND_LIFE_TICKS;
+    cached.playing = true;
+    rl.playSound(cached.sound.*);
 }
 
 pub fn playAdvanced(
@@ -123,9 +133,8 @@ pub fn stop(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.stopSound(sound.*);
+    rl.stopSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -133,9 +142,8 @@ pub fn proceed(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.resumeSound(sound.*);
+    rl.resumeSound(cached.sound.*);
     cached.playing = true;
 }
 
@@ -143,9 +151,8 @@ pub fn pause(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.pauseSound(sound.*);
+    rl.pauseSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -153,8 +160,7 @@ pub fn isPlaying(path: []const u8) bool {
     if (!is_alive) return false;
 
     const cached = audio_cache.getPtr(path) orelse return false;
-    const sound = cached.sound orelse return false;
-    cached.playing = rl.isSoundPlaying(sound.*);
+    cached.playing = rl.isSoundPlaying(cached.sound.*);
 
     return cached.playing;
 }
@@ -163,9 +169,7 @@ pub fn setVolume(path: []const u8, volume: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundVolume(sound.*, volume);
-    }
+    rl.setSoundVolume(cached.sound.*, volume);
     cached.volume = volume;
 }
 
@@ -180,9 +184,7 @@ pub fn setPitch(path: []const u8, pitch: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundPitch(sound.*, pitch);
-    }
+    rl.setSoundPitch(cached.sound.*, pitch);
     cached.pitch = pitch;
 }
 
@@ -198,9 +200,7 @@ pub fn setPan(path: []const u8, pan: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundPan(sound.*, pan);
-    }
+    rl.setSoundPan(cached.sound.*, pan);
     cached.pan = pan;
 }
 
@@ -211,3 +211,4 @@ pub fn getPan(path: []const u8) f32 {
 
     return cached.pan;
 }
+

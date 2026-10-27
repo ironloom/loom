@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const lm = @import("../../root.zig");
+const rl = lm.deps.rl;
 
 pub const shared = @import("./types.zig");
 
@@ -16,7 +17,7 @@ alive: bool = false,
 animations: lm.List(*Animation) = undefined,
 base_animations: []const Animation,
 playing: lm.List(*Animation) = undefined,
-sprite_cache: std.AutoHashMap(u128, lm.List(*lm.assets.texture.Promise)) = undefined,
+sprite_cache: std.AutoHashMap(u128, lm.List(*rl.Texture)) = undefined,
 
 transform: ?*lm.Transform = null,
 display: ?*lm.Renderer = null,
@@ -24,17 +25,23 @@ display: ?*lm.Renderer = null,
 // Behaviour Methods
 // --------------------------------------------------------------------------------------------------------------
 
-pub fn Awake(self: *Self, entity: *lm.Entity) !void {
+pub fn Awake(self: *Self) !void {
     self.animations = lm.List(*Animation).init(self.alloc);
     self.playing = lm.List(*Animation).init(self.alloc);
-    self.sprite_cache = std.AutoHashMap(u128, lm.List(*lm.assets.texture.Promise)).init(self.alloc);
+    self.sprite_cache = std.AutoHashMap(u128, lm.List(*rl.Texture)).init(self.alloc);
 
-    for (self.base_animations) |item| {
-        try self.chain(item);
+    for (self.base_animations) |animation| {
+        try self.chain(animation);
     }
+}
 
+pub fn Start(self: *Self, entity: *lm.Entity) !void {
     self.transform = entity.getComponent(lm.Transform) orelse return;
     self.display = entity.getComponent(lm.Renderer) orelse return;
+
+    for (self.animations.items()) |animation| {
+        self.cacheAnimationSprites(animation);
+    }
 }
 
 pub fn Update(self: *Self, _: *lm.Entity) !void {
@@ -54,41 +61,34 @@ pub fn Update(self: *Self, _: *lm.Entity) !void {
         const next_keyframe = next orelse {
             current_keyframe.apply(transform, display);
             animation.playing = false;
-            self.releaseAnimationSprites(animation.uuid);
             continue;
         };
 
         const interpolation_factor =
             @min(1, @max(0, (lm.time.gameTime() - lm.tof32(animation.start_time)) / lm.tof32(animation.length)));
 
-        const anim_progress_percent = animation.timing_function(0, 1, interpolation_factor);
+        const animation_progress_percent = animation.timing_function(0, 1, interpolation_factor);
         const next_index_percent = animation.timing_function(0, 1, lm.tof32(animation.next_index) / 100);
         const current_index_percent = animation.timing_function(0, 1, lm.tof32(animation.current_index) / 100);
 
-        const percent = @min(1, @max(0, (anim_progress_percent - current_index_percent) / (next_index_percent - current_index_percent)));
+        const percent = @min(1, @max(0, (animation_progress_percent - current_index_percent) / (next_index_percent - current_index_percent)));
 
         const interpolated_keyframe = current_keyframe
             .interpolate(next_keyframe, shared.interpolation.lerp, percent);
 
         interpolated_keyframe.apply(transform, display);
 
-        if (interpolated_keyframe.sprite) |sprite_path| {
-            const tile_size = display.tile_size orelse transform.scale;
-            self.cacheSprite(animation.uuid, sprite_path, &.{ lm.toi32(tile_size.x), lm.toi32(tile_size.y) });
-        }
-
         if (percent != 1) continue;
 
         animation.incrementCurrentPercent(lm.toi32(interpolation_factor * 100));
     }
 
-    const playing_len = self.playing.len();
-    for (1..playing_len + 1) |j| {
-        const index = playing_len - j;
+    const playing_count = self.playing.len();
+    for (1..playing_count + 1) |offset| {
+        const index = playing_count - offset;
         const item = self.playing.items()[index];
 
         if (item.playing) continue;
-        self.releaseAnimationSprites(item.uuid);
         _ = self.playing.swapRemove(index);
     }
 }
@@ -125,20 +125,21 @@ pub fn deinit(self: *Self) void {
     self.alive = false;
 }
 
-pub fn chain(self: *Self, anim: Animation) !void {
+pub fn chain(self: *Self, animation: Animation) !void {
     if (!self.alive) return;
 
-    const ptr = try self.alloc.create(Animation);
-    ptr.* = anim;
+    const stored_animation = try self.alloc.create(Animation);
+    stored_animation.* = animation;
 
-    for (ptr.base_keyframes) |base_keyframe| {
-        _ = ptr.append(base_keyframe);
+    for (stored_animation.base_keyframes) |base_keyframe| {
+        _ = stored_animation.append(base_keyframe);
     }
-    ptr.close();
+    stored_animation.close();
 
-    if (ptr.uuid == 0) ptr.uuid = lm.UUIDv7();
+    if (stored_animation.uuid == 0) stored_animation.uuid = lm.UUIDv7();
 
-    try self.animations.append(ptr);
+    try self.animations.append(stored_animation);
+    self.cacheAnimationSprites(stored_animation);
 }
 
 pub fn isPlaying(self: *Self, name: []const u8) bool {
@@ -154,17 +155,15 @@ pub fn isPlaying(self: *Self, name: []const u8) bool {
 pub fn play(self: *Self, name: []const u8) !void {
     if (!self.alive) return;
 
-    for (self.animations.items()) |anim| {
-        if (!std.mem.eql(u8, anim.name, name)) continue;
+    for (self.animations.items()) |animation| {
+        if (!std.mem.eql(u8, animation.name, name)) continue;
 
-        if (anim.playing) return;
-        try self.playing.append(anim);
+        if (animation.playing) return;
+        try self.playing.append(animation);
 
-        anim.playing = true;
-        anim.current_percent = 0;
-        anim.start_time = lm.time.gameTime();
-
-        self.cacheAnimationSprites(anim);
+        animation.playing = true;
+        animation.current_percent = 0;
+        animation.start_time = lm.time.gameTime();
 
         break;
     }
@@ -173,86 +172,74 @@ pub fn play(self: *Self, name: []const u8) !void {
 pub fn stop(self: *Self, name: []const u8) void {
     if (!self.alive) return;
 
-    for (self.animations.items()) |anim| {
-        if (!std.mem.eql(u8, anim.name, name)) continue;
-        if (!anim.playing) return;
+    for (self.animations.items()) |animation| {
+        if (!std.mem.eql(u8, animation.name, name)) continue;
+        if (!animation.playing) return;
 
         for (self.playing.items(), 0..) |item, index| {
-            if (item.uuid != anim.uuid) continue;
+            if (item.uuid != animation.uuid) continue;
 
             _ = self.playing.swapRemove(index);
             break;
         }
 
-        anim.playing = false;
-        self.releaseAnimationSprites(anim.uuid);
+        animation.playing = false;
         break;
     }
 }
 
-fn cacheSprite(self: *Self, anim_uuid: u128, path: []const u8, modifiers: []const i32) void {
-    const promise = lm.assets.texture.get(path, modifiers) orelse return;
+fn cacheSprite(self: *Self, animation_uuid: u128, path: []const u8, modifiers: []const i32) void {
+    const texture = lm.assets.texture.get(path, modifiers) orelse return;
 
-    const list = if (self.sprite_cache.getPtr(anim_uuid)) |existing_list|
-        existing_list
+    const cached_textures = if (self.sprite_cache.getPtr(animation_uuid)) |existing_textures|
+        existing_textures
     else Blk: {
-        const new_list = lm.List(*lm.assets.texture.Promise).init(self.alloc);
-        self.sprite_cache.put(anim_uuid, new_list) catch {
-            lm.assets.texture.releasePromise(promise);
+        const initialized_textures = lm.List(*rl.Texture).init(self.alloc);
+        self.sprite_cache.put(animation_uuid, initialized_textures) catch {
+            lm.assets.texture.releasePtr(texture);
             return;
         };
-        break :Blk self.sprite_cache.getPtr(anim_uuid).?;
+        break :Blk self.sprite_cache.getPtr(animation_uuid).?;
     };
 
-    for (list.items()) |cached_promise| {
-        if (cached_promise == promise) {
-            lm.assets.texture.releasePromise(promise);
+    for (cached_textures.items()) |cached_texture| {
+        if (cached_texture == texture) {
+            lm.assets.texture.releasePtr(texture);
             return;
         }
     }
 
-    list.append(promise) catch {
-        lm.assets.texture.releasePromise(promise);
+    cached_textures.append(texture) catch {
+        lm.assets.texture.releasePtr(texture);
     };
 }
 
-fn cacheAnimationSprites(self: *Self, anim: *Animation) void {
+fn cacheAnimationSprites(self: *Self, animation: *Animation) void {
     const display = self.display orelse return;
     const transform = self.transform orelse return;
     const tile_size = display.tile_size orelse transform.scale;
     const modifiers = [_]i32{ lm.toi32(tile_size.x), lm.toi32(tile_size.y) };
 
-    if (anim.keyframes) |*kfs| {
-        var iter = kfs.iterator();
-        while (iter.next()) |entry| {
-            if (entry.value_ptr.sprite) |path| {
-                self.cacheSprite(anim.uuid, path, &modifiers);
-            }
+    if (animation.keyframes) |*keyframes| {
+        var keyframe_iterator = keyframes.iterator();
+        while (keyframe_iterator.next()) |entry| {
+            const path = entry.value_ptr.sprite orelse continue;
+            self.cacheSprite(animation.uuid, path, &modifiers);
         }
-    } else {
-        for (anim.base_keyframes) |kf| {
-            if (kf.sprite) |path| {
-                self.cacheSprite(anim.uuid, path, &modifiers);
-            }
-        }
+        return;
     }
-}
 
-fn releaseAnimationSprites(self: *Self, anim_uuid: u128) void {
-    if (self.sprite_cache.fetchRemove(anim_uuid)) |kv| {
-        var list = kv.value;
-        for (list.items()) |promise| {
-            lm.assets.texture.releasePromise(promise);
-        }
-        list.deinit();
+    for (animation.base_keyframes) |keyframe| {
+        const path = keyframe.sprite orelse continue;
+        self.cacheSprite(animation.uuid, path, &modifiers);
     }
 }
 
 fn clearAllSpriteCaches(self: *Self) void {
-    var iter = self.sprite_cache.iterator();
-    while (iter.next()) |entry| {
-        for (entry.value_ptr.items()) |promise| {
-            lm.assets.texture.releasePromise(promise);
+    var cache_iterator = self.sprite_cache.iterator();
+    while (cache_iterator.next()) |entry| {
+        for (entry.value_ptr.items()) |texture| {
+            lm.assets.texture.releasePtr(texture);
         }
         entry.value_ptr.deinit();
     }

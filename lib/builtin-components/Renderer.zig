@@ -10,17 +10,13 @@ pub const DisplayCache = struct {
 
     transform: Transform,
     img_path: []const u8,
-    promise: ?*assets.texture.Promise = null,
     texture: ?*rl.Texture = null,
 
     pub fn free(self: *This) void {
         if (self.texture) |tex| {
             assets.texture.releasePtr(tex);
             self.texture = null;
-        } else if (self.promise) |promise| {
-            assets.texture.releasePromise(promise);
         }
-        self.promise = null;
     }
 };
 
@@ -70,7 +66,6 @@ pub fn Awake(self: *Self, entity: *lm.Entity) !void {
         .transform = Transform{
             .scale = .init(-1, -1),
         },
-        .promise = null,
         .texture = null,
     });
     self.display_cache = try entity.getComponentUnsafe(DisplayCache).unwrap();
@@ -100,18 +95,11 @@ pub fn Update(self: *Self, entity: *lm.Entity) !void {
         display_cache.* = DisplayCache{
             .img_path = self.img_path,
             .transform = transform.*,
-            .promise = assets.texture.get(
+            .texture = assets.texture.get(
                 self.img_path,
                 &.{ lm.toi32(tile_size.x), lm.toi32(tile_size.y) },
             ),
-            .texture = null,
         };
-    }
-
-    if (display_cache.texture == null) {
-        if (display_cache.promise) |promise| {
-            display_cache.texture = promise.upload() catch null;
-        }
     }
 
     const texture = display_cache.texture orelse return;

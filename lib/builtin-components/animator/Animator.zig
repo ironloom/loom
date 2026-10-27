@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const lm = @import("../../root.zig");
+const rl = lm.deps.rl;
 
 pub const shared = @import("./types.zig");
 
@@ -16,7 +17,7 @@ alive: bool = false,
 animations: lm.List(*Animation) = undefined,
 base_animations: []const Animation,
 playing: lm.List(*Animation) = undefined,
-sprite_cache: std.AutoHashMap(u128, lm.List(*lm.assets.texture.Promise)) = undefined,
+sprite_cache: std.AutoHashMap(u128, lm.List(*rl.Texture)) = undefined,
 
 transform: ?*lm.Transform = null,
 display: ?*lm.Renderer = null,
@@ -27,7 +28,7 @@ display: ?*lm.Renderer = null,
 pub fn Awake(self: *Self, entity: *lm.Entity) !void {
     self.animations = lm.List(*Animation).init(self.alloc);
     self.playing = lm.List(*Animation).init(self.alloc);
-    self.sprite_cache = std.AutoHashMap(u128, lm.List(*lm.assets.texture.Promise)).init(self.alloc);
+    self.sprite_cache = std.AutoHashMap(u128, lm.List(*rl.Texture)).init(self.alloc);
 
     for (self.base_animations) |item| {
         try self.chain(item);
@@ -191,28 +192,28 @@ pub fn stop(self: *Self, name: []const u8) void {
 }
 
 fn cacheSprite(self: *Self, anim_uuid: u128, path: []const u8, modifiers: []const i32) void {
-    const promise = lm.assets.texture.get(path, modifiers) orelse return;
+    const tex = lm.assets.texture.get(path, modifiers) orelse return;
 
     const list = if (self.sprite_cache.getPtr(anim_uuid)) |existing_list|
         existing_list
     else Blk: {
-        const new_list = lm.List(*lm.assets.texture.Promise).init(self.alloc);
+        const new_list = lm.List(*rl.Texture).init(self.alloc);
         self.sprite_cache.put(anim_uuid, new_list) catch {
-            lm.assets.texture.releasePromise(promise);
+            lm.assets.texture.releasePtr(tex);
             return;
         };
         break :Blk self.sprite_cache.getPtr(anim_uuid).?;
     };
 
-    for (list.items()) |cached_promise| {
-        if (cached_promise == promise) {
-            lm.assets.texture.releasePromise(promise);
+    for (list.items()) |cached_tex| {
+        if (cached_tex == tex) {
+            lm.assets.texture.releasePtr(tex);
             return;
         }
     }
 
-    list.append(promise) catch {
-        lm.assets.texture.releasePromise(promise);
+    list.append(tex) catch {
+        lm.assets.texture.releasePtr(tex);
     };
 }
 
@@ -241,8 +242,8 @@ fn cacheAnimationSprites(self: *Self, anim: *Animation) void {
 fn releaseAnimationSprites(self: *Self, anim_uuid: u128) void {
     if (self.sprite_cache.fetchRemove(anim_uuid)) |kv| {
         var list = kv.value;
-        for (list.items()) |promise| {
-            lm.assets.texture.releasePromise(promise);
+        for (list.items()) |tex| {
+            lm.assets.texture.releasePtr(tex);
         }
         list.deinit();
     }
@@ -251,8 +252,8 @@ fn releaseAnimationSprites(self: *Self, anim_uuid: u128) void {
 fn clearAllSpriteCaches(self: *Self) void {
     var iter = self.sprite_cache.iterator();
     while (iter.next()) |entry| {
-        for (entry.value_ptr.items()) |promise| {
-            lm.assets.texture.releasePromise(promise);
+        for (entry.value_ptr.items()) |tex| {
+            lm.assets.texture.releasePtr(tex);
         }
         entry.value_ptr.deinit();
     }

@@ -24,10 +24,7 @@ pub fn parse(
     return img;
 }
 
-pub fn upload(raw: rl.Image) !rl.Image {
-    return raw;
-}
-
 pub fn release(uploaded: rl.Image) void {
     rl.unloadImage(uploaded);
 }
+

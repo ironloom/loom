@@ -7,8 +7,7 @@ const assets = loom.assets;
 const Sound = rl.Sound;
 
 const Cached = struct {
-    promise: *assets.sound.Promise,
-    sound: ?*Sound = null,
+    sound: *Sound,
     life: usize = 15,
     playing: bool = false,
     volume: f32 = 1,
@@ -32,11 +31,7 @@ pub fn deinit() void {
 
     var iter = audio_cache.iterator();
     while (iter.next()) |entry| {
-        if (entry.value_ptr.sound) |sound| {
-            assets.sound.releasePtr(sound);
-        } else {
-            assets.sound.releasePromise(entry.value_ptr.promise);
-        }
+        assets.sound.releasePtr(entry.value_ptr.sound);
     }
 
     is_alive = false;
@@ -66,11 +61,10 @@ pub fn load(path: []const u8) !void {
 
     if (audio_cache.contains(path)) return;
 
-    const promise = assets.sound.get(path, &.{}) orelse return;
+    const sound = assets.sound.get(path, &.{}) orelse return;
 
     try audio_cache.put(path, Cached{
-        .promise = promise,
-        .sound = promise.sync() catch null,
+        .sound = sound,
         .playing = true,
     });
 }
@@ -79,11 +73,7 @@ pub fn unload(path: []const u8) void {
     if (!is_alive) return;
     const entry = audio_cache.fetchRemove(path) orelse return;
 
-    if (entry.value.sound) |sound| {
-        assets.sound.releasePtr(sound);
-    } else {
-        assets.sound.releasePromise(entry.value.promise);
-    }
+    assets.sound.releasePtr(entry.value.sound);
 }
 
 pub fn play(path: []const u8) !void {
@@ -94,12 +84,7 @@ pub fn play(path: []const u8) !void {
         break :add audio_cache.getPtr(path) orelse return;
     };
 
-    if (cached.sound == null) {
-        cached.sound = cached.promise.sync() catch null;
-    }
-    const sound = cached.sound orelse return;
-
-    rl.playSound(sound.*);
+    rl.playSound(cached.sound.*);
 }
 
 pub fn playAdvanced(
@@ -123,9 +108,8 @@ pub fn stop(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.stopSound(sound.*);
+    rl.stopSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -133,9 +117,8 @@ pub fn proceed(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.resumeSound(sound.*);
+    rl.resumeSound(cached.sound.*);
     cached.playing = true;
 }
 
@@ -143,9 +126,8 @@ pub fn pause(path: []const u8) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    const sound = cached.sound orelse return;
 
-    rl.pauseSound(sound.*);
+    rl.pauseSound(cached.sound.*);
     cached.playing = false;
 }
 
@@ -153,8 +135,7 @@ pub fn isPlaying(path: []const u8) bool {
     if (!is_alive) return false;
 
     const cached = audio_cache.getPtr(path) orelse return false;
-    const sound = cached.sound orelse return false;
-    cached.playing = rl.isSoundPlaying(sound.*);
+    cached.playing = rl.isSoundPlaying(cached.sound.*);
 
     return cached.playing;
 }
@@ -163,9 +144,7 @@ pub fn setVolume(path: []const u8, volume: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundVolume(sound.*, volume);
-    }
+    rl.setSoundVolume(cached.sound.*, volume);
     cached.volume = volume;
 }
 
@@ -180,9 +159,7 @@ pub fn setPitch(path: []const u8, pitch: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundPitch(sound.*, pitch);
-    }
+    rl.setSoundPitch(cached.sound.*, pitch);
     cached.pitch = pitch;
 }
 
@@ -198,9 +175,7 @@ pub fn setPan(path: []const u8, pan: f32) void {
     if (!is_alive) return;
 
     const cached = audio_cache.getPtr(path) orelse return;
-    if (cached.sound) |sound| {
-        rl.setSoundPan(sound.*, pan);
-    }
+    rl.setSoundPan(cached.sound.*, pan);
     cached.pan = pan;
 }
 
@@ -211,3 +186,4 @@ pub fn getPan(path: []const u8) f32 {
 
     return cached.pan;
 }
+
